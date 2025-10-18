@@ -1,3 +1,26 @@
+"""
+Management command to wipe saved opportunities for professors.
+
+Usage examples:
+    # Wipe all saved opportunities for all professors (with confirmation)
+    python manage.py wipe_saved_opportunities
+
+    # Wipe saved opportunities for a specific professor
+    python manage.py wipe_saved_opportunities --professor-email widmer@cua.edu
+
+    # Dry run to see what would be deleted without actually deleting
+    python manage.py wipe_saved_opportunities --dry-run
+
+    # Skip confirmation prompt (use with caution)
+    python manage.py wipe_saved_opportunities --confirm
+
+This command removes:
+- SavedGrant entries (grants saved by users)
+- GrantPipelineEntry entries (grants in professor pipelines)
+- Sets is_saved=False on GrantRecommendation entries
+- Clears grants from pipeline stages
+"""
+
 import json
 import os
 from django.core.management.base import BaseCommand, CommandError
