@@ -46,8 +46,6 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import BlockIcon from '@mui/icons-material/Block';
 import InfoIcon from '@mui/icons-material/Info';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import GroupIcon from '@mui/icons-material/Group';
 import EmailIcon from '@mui/icons-material/Email';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -68,68 +66,54 @@ const StyledCard = styled(Card)(({ theme }) => ({
   },
 }));
 
-const GrantCard = styled(Card)(({ theme }) => ({
-  width: '100%',
-  margin: '0 auto',
-  position: 'relative',
-  backgroundColor: theme.palette.background.paper,
-  boxShadow: theme.shadows[3],
-  borderRadius: '16px',
-  padding: '16px',
-  transition: 'all 0.3s ease-in-out',
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'space-between',
-  marginBottom: '16px',
-  '&:hover': {
-    boxShadow: theme.shadows[6],
-    transform: 'translateY(-2px)',
-  },
-}));
 
 const StatusChip = styled(Chip)(({ theme, $color }) => {
   const color = $color || theme.palette.grey[500]; // Fallback color
   return {
     background: `linear-gradient(45deg, ${color} 30%, ${alpha(color, 0.8)} 90%)`,
-    color: '#FFFFFF',
-    fontWeight: 'medium',
-    transition: 'all 0.2s ease-in-out',
+  color: '#FFFFFF',
+  fontWeight: 'medium',
+  transition: 'all 0.2s ease-in-out',
     boxShadow: `0 2px 4px ${alpha(color, 0.3)}`,
-    '&:hover': {
-      transform: 'scale(1.05)',
+  '&:hover': {
+    transform: 'scale(1.05)',
       background: `linear-gradient(45deg, ${alpha(color, 0.8)} 30%, ${color} 90%)`,
       boxShadow: `0 3px 6px ${alpha(color, 0.4)}`,
-    },
-    '& .MuiChip-label': {
-      padding: '0 12px',
-      color: '#FFFFFF',
+  },
+  '& .MuiChip-label': {
+    padding: '0 12px',
+    color: '#FFFFFF',
     },
   };
 });
 
 const StageHeader = styled(Box)(({ theme, color, order }) => ({
-  padding: theme.spacing(2),
+  padding: theme.spacing(1.5),
   background: `linear-gradient(45deg, ${color} 30%, ${alpha(color, 0.8)} 90%)`,
   borderRadius: '8px 8px 0 0',
   display: 'flex',
   alignItems: 'center',
   gap: theme.spacing(1),
   color: '#FFFFFF',
-  marginBottom: theme.spacing(2),
+  marginBottom: theme.spacing(1),
   position: 'relative',
-  boxShadow: `0 3px 5px 2px ${alpha(color, 0.3)}`,
+  boxShadow: `0 2px 4px 1px ${alpha(color, 0.3)}`,
   transition: 'all 0.3s ease-in-out',
+  minHeight: '48px',
   '&:hover': {
     background: `linear-gradient(45deg, ${alpha(color, 0.8)} 30%, ${color} 90%)`,
-    boxShadow: `0 4px 8px 3px ${alpha(color, 0.4)}`,
+    boxShadow: `0 3px 6px 2px ${alpha(color, 0.4)}`,
   },
   '& .MuiTypography-root': {
     color: '#FFFFFF',
+    fontSize: '0.875rem',
+    fontWeight: 'bold',
   },
   '& .MuiChip-root': {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     color: '#FFFFFF',
+    height: '24px',
+    fontSize: '0.75rem',
     '&:hover': {
       backgroundColor: 'rgba(255, 255, 255, 0.3)',
     },
@@ -137,20 +121,42 @@ const StageHeader = styled(Box)(({ theme, color, order }) => ({
   '&::before': {
     content: `"${order + 1}"`,
     position: 'absolute',
-    left: '-12px',
+    left: '-10px',
     top: '50%',
     transform: 'translateY(-50%)',
-    width: '24px',
-    height: '24px',
+    width: '20px',
+    height: '20px',
     borderRadius: '50%',
     backgroundColor: theme.palette.background.paper,
     color: color,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '0.875rem',
+    fontSize: '0.75rem',
     fontWeight: 'bold',
     boxShadow: theme.shadows[2],
+  },
+}));
+
+const CompactGrantCard = styled(Card)(({ theme }) => ({
+  width: '100%',
+  maxWidth: '280px',
+  margin: '0 auto',
+  position: 'relative',
+  backgroundColor: theme.palette.background.paper,
+  boxShadow: theme.shadows[2],
+  borderRadius: '8px',
+  padding: '8px 10px',
+  transition: 'box-shadow 0.3s ease-in-out',
+  '&:hover': {
+    boxShadow: theme.shadows[3],
+  },
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'flex-start',
+  marginBottom: '6px',
+  '&:last-child': {
+    marginBottom: 0,
   },
 }));
 
@@ -204,7 +210,7 @@ const SavedGrants = ({ onClose }) => {
     'rejected': theme.palette.error.main
   };
 
-  // Hardcoded pipeline stages with error gradient colors
+  // Hardcoded pipeline stages with error gradient colors (reduced to 4 stages to fit in one row)
   const pipelineStages = [
     {
       id: 1,
@@ -220,27 +226,15 @@ const SavedGrants = ({ onClose }) => {
     },
     {
       id: 3,
-      name: 'Proposal Development',
+      name: 'Application Submitted',
       color: theme.palette.primary.main,
       order: 2
     },
     {
       id: 4,
-      name: 'Application Submitted',
-      color: theme.palette.secondary.main,
-      order: 3
-    },
-    {
-      id: 5,
       name: 'Awarded',
       color: theme.palette.success.main,
-      order: 4
-    },
-    {
-      id: 6,
-      name: 'Not Awarded',
-      color: theme.palette.error.main,
-      order: 5
+      order: 3
     }
   ];
 
@@ -340,16 +334,6 @@ const SavedGrants = ({ onClose }) => {
     setSelectedGrant(null);
   };
 
-  const handleOpenInviteDialog = (grant) => {
-    setSelectedGrant(grant);
-    setInviteForm({
-      invitee_email: '',
-      invitee_name: '',
-      message: '',
-      role: 'collaborator'
-    });
-    setInviteDialogOpen(true);
-  };
 
   const handleCloseInviteDialog = () => {
     setInviteDialogOpen(false);
@@ -460,45 +444,6 @@ const SavedGrants = ({ onClose }) => {
     }
   };
 
-  const handleDeleteGrant = async (grantId) => {
-    if (!window.confirm('Are you sure you want to delete this saved grant?')) {
-      return;
-    }
-
-    try {
-      const sessionToken = localStorage.getItem('session_token');
-      if (!sessionToken) return;
-      
-      // Find the pipeline entry for this grant
-      const pipelineEntry = savedGrants.find(grant => grant.id === grantId);
-      if (!pipelineEntry || !pipelineEntry.pipeline_entry_id) return;
-      
-      const response = await fetch(`http://localhost:8000/api/grant-pipeline/entry/${pipelineEntry.pipeline_entry_id}/`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Token ${sessionToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        setSnackbar({
-          open: true,
-          message: 'Grant deleted successfully',
-          severity: 'success'
-        });
-        fetchSavedGrants();
-      } else {
-        throw new Error('Failed to delete grant');
-      }
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: err.message,
-        severity: 'error'
-      });
-    }
-  };
 
   const handleInviteResponse = async (response) => {
     try {
@@ -562,6 +507,152 @@ const SavedGrants = ({ onClose }) => {
      return iconMap[stageKey] || <AssessmentIcon sx={{ color: 'white' }} />;
    };
 
+   // Render compact grant card for pipeline stages
+   const renderCompactGrantCard = (grant) => {
+     const daysLeft = grant.application_deadline ? getDaysUntilDeadline(grant.application_deadline) : 0;
+    const deadlineColor = getDeadlineColor(daysLeft);
+
+    return (
+       <CompactGrantCard key={grant.id}>
+        <Box>
+           <Tooltip title={grant.title} placement="top">
+              <Typography
+               variant="subtitle2"
+                component="div"
+                sx={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  fontWeight: 'bold',
+                  color: theme.palette.primary.main,
+                  cursor: 'pointer',
+                 fontSize: '0.8rem',
+                 mb: 0.5,
+                 minWidth: 0,
+                 lineHeight: 1.2,
+                }}
+                onClick={() => handleOpenDetailsDialog(grant)}
+              >
+               {grant.title}
+              </Typography>
+            </Tooltip>
+
+           <Box display="flex" flexWrap="wrap" gap={0.3} mb={0.5}>
+            <Chip
+               label={grant.agency}
+              size="small"
+              variant="outlined"
+              sx={{
+                 height: '18px',
+                 fontSize: '0.65rem',
+                backgroundColor: 'transparent',
+                borderColor: theme.palette.text.secondary,
+                color: theme.palette.text.secondary,
+              }}
+            />
+              <Chip
+               label={grant.status}
+                size="small"
+                sx={{
+                 height: '18px',
+                 fontSize: '0.65rem',
+                 backgroundColor: statusColors[grant.status] || theme.palette.grey[500],
+                 color: 'white',
+               }}
+             />
+           </Box>
+          </Box>
+
+         <Box sx={{ mt: 0.5 }}>
+           <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="caption" sx={{
+              display: 'flex',
+              alignItems: 'center',
+              color: theme.palette.text.secondary,
+               fontSize: '0.7rem',
+            }}>
+               <FontAwesomeIcon icon={faHourglassHalf} style={{ marginRight: 3, fontSize: '0.65rem' }} />
+               {grant.application_deadline ? new Date(grant.application_deadline).toLocaleDateString() : 'No deadline'}
+            </Typography>
+             {grant.application_deadline && (
+            <Chip
+                 label={`${daysLeft}d`}
+              color={deadlineColor}
+              size="small"
+                 sx={{
+                   height: '18px',
+                   fontSize: '0.65rem',
+                   fontWeight: 'bold',
+                 }}
+               />
+             )}
+          </Box>
+
+          {grant.notes && (
+            <Typography
+               variant="caption"
+              color="textSecondary"
+              sx={{
+                 mt: 0.3,
+                 fontSize: '0.65rem',
+                 lineHeight: 1.2,
+                display: '-webkit-box',
+                 WebkitLineClamp: 1,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {grant.notes}
+            </Typography>
+          )}
+        </Box>
+
+         {/* Compact action icons */}
+        <Box sx={{
+          display: 'flex',
+           justifyContent: 'flex-end',
+          alignItems: 'center',
+           gap: 0.3,
+           mt: 0.3,
+        }}>
+            <Tooltip title="View Details">
+              <IconButton
+                size="small"
+                onClick={() => handleOpenDetailsDialog(grant)}
+                sx={{
+                 p: 0.3,
+                  color: theme.palette.info.main,
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.info.main, 0.1),
+                  }
+                }}
+              >
+               <InfoIcon sx={{ fontSize: '0.9rem' }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Edit Grant">
+              <IconButton
+                size="small"
+                onClick={() => handleOpenEditDialog(grant)}
+                sx={{
+                 p: 0.3,
+                  color: theme.palette.warning.main,
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.warning.main, 0.1),
+                  }
+                }}
+              >
+               <EditIcon sx={{ fontSize: '0.9rem' }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+       </CompactGrantCard>
+     );
+   };
+
   const pieChartData = Object.entries(statusCounts).map(([status, count]) => ({
     name: status.charAt(0).toUpperCase() + status.slice(1),
     value: count,
@@ -582,193 +673,217 @@ const SavedGrants = ({ onClose }) => {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography color="error">{error}</Typography>
-      </Box>
+        </Box>
     );
   }
 
-  const renderGrantCard = (grant) => {
-    const daysLeft = getDaysUntilDeadline(grant.application_deadline);
-    const deadlineColor = getDeadlineColor(daysLeft);
-
-    return (
-      <GrantCard key={grant.id}>
-        <Box>
-          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-            <Tooltip title={grant.title} placement="top">
-              <Typography
-                variant="h6"
-                component="div"
-                sx={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  fontWeight: 'bold',
-                  color: theme.palette.primary.main,
-                  cursor: 'pointer',
-                  flex: 1,
-                  mr: 2,
-                }}
-                onClick={() => handleOpenDetailsDialog(grant)}
-              >
-                {grant.title}
-              </Typography>
-            </Tooltip>
-            <StatusChip
-              label={grant.status}
-              $color={statusColors[grant.status] || theme.palette.grey[500]}
-              size="small"
-              icon={statusIcons[grant.status] || <FolderIcon sx={{ color: 'white' }} />}
-            />
-          </Box>
-
-          <Box display="flex" flexWrap="wrap" gap={1} mb={2}>
-            <Chip
-              label={grant.agency}
-              size="small"
-              variant="outlined"
-              sx={{
-                backgroundColor: 'transparent',
-                borderColor: theme.palette.text.secondary,
-                color: theme.palette.text.secondary,
-              }}
-            />
-          </Box>
-
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            <Typography variant="caption" sx={{
-              display: 'flex',
-              alignItems: 'center',
-              color: theme.palette.text.secondary,
-            }}>
-              <FontAwesomeIcon icon={faHourglassHalf} style={{ marginRight: 6 }} />
-              {grant.application_deadline ? new Date(grant.application_deadline).toLocaleDateString() : 'No deadline'}
-            </Typography>
-            {grant.application_deadline && (
-              <Chip
-                label={`${daysLeft}d left`}
-                color={deadlineColor}
-                size="small"
-                sx={{ fontWeight: 'bold' }}
-              />
-            )}
-          </Box>
-
-          {grant.notes && (
-            <Typography
-              variant="body2"
-              color="textSecondary"
-              sx={{
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                mb: 2,
-              }}
-            >
-              {grant.notes}
-            </Typography>
-          )}
-        </Box>
-
-        <Box sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 1,
-        }}>
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="View Details">
-              <IconButton
-                size="small"
-                onClick={() => handleOpenDetailsDialog(grant)}
-                sx={{
-                  color: theme.palette.info.main,
-                  '&:hover': {
-                    backgroundColor: alpha(theme.palette.info.main, 0.1),
-                  }
-                }}
-              >
-                <InfoIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Edit Grant">
-              <IconButton
-                size="small"
-                onClick={() => handleOpenEditDialog(grant)}
-                sx={{
-                  color: theme.palette.warning.main,
-                  '&:hover': {
-                    backgroundColor: alpha(theme.palette.warning.main, 0.1),
-                  }
-                }}
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            {grant.allow_collaboration && (
-              <Tooltip title="Invite Collaborator">
-                <IconButton
-                  size="small"
-                  onClick={() => handleOpenInviteDialog(grant)}
-                  sx={{
-                    color: theme.palette.primary.main,
-                    '&:hover': {
-                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    }
-                  }}
-                >
-                  <PersonAddIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Box>
-          <Tooltip title="Delete Grant">
-            <IconButton
-              size="small"
-              onClick={() => handleDeleteGrant(grant.id)}
-              sx={{
-                color: theme.palette.error.main,
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.error.main, 0.1),
-                }
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </GrantCard>
-    );
-  };
 
   const renderTabContent = () => {
     switch (currentTab) {
       case 0: // Saved Grants
         return (
-          <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} sx={{ width: '100%' }}>
-            {savedGrants.length > 0 ? (
-              savedGrants.map(grant => (
-                <Grid item xs={12} sm={6} md={4} lg={3} xl={2} key={grant.id}>
-                  {renderGrantCard(grant)}
+          <Box>
+            {/* Summary Cards */}
+            <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} mb={4} sx={{ width: '100%' }}>
+              <Grid item xs={12} md={4}>
+                <StyledCard elevation={3}>
+                  <CardContent>
+                    <Typography variant="h5" gutterBottom sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      color: theme.palette.primary.main,
+                    }}>
+                      <FolderIcon color="primary" />
+                      Saved Grants
+                    </Typography>
+                    <Typography variant="h3" color="primary" gutterBottom sx={{
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      my: 2,
+                    }}>
+                      {totalGrants}
+                    </Typography>
+                    <Typography variant="body1" sx={{
+                      textAlign: 'center',
+                      color: theme.palette.text.secondary,
+                      mb: 2,
+                    }}>
+                      Total Saved Grants
+                    </Typography>
+                  </CardContent>
+                </StyledCard>
                 </Grid>
-              ))
-            ) : (
-              <Grid item xs={12}>
-                <Box p={4} textAlign="center">
-                  <FolderIcon sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
-                  <Typography variant="h6" color="textSecondary" gutterBottom>
-                    No Saved Grants
+
+              <Grid item xs={12} md={4}>
+                <StyledCard elevation={3}>
+                  <CardContent>
+                    <Typography variant="h5" gutterBottom>
+                      Status Distribution
+                    </Typography>
+                    {totalGrants > 0 ? (
+                      <Box height={300} display="flex" justifyContent="center">
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={pieChartData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={renderCustomizedLabel}
+                              outerRadius={100}
+                              innerRadius={40}
+                              fill="#8884d8"
+                              dataKey="value"
+                              paddingAngle={2}
+                            >
+                              {pieChartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Legend />
+                            <RechartsTooltip formatter={(value, name) => [`${value} grants`, name]} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </Box>
+                    ) : (
+                      <Box height={300} display="flex" justifyContent="center" alignItems="center">
+                        <Typography variant="body1" color="textSecondary">
+                          No grants saved yet
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </StyledCard>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <StyledCard elevation={3}>
+                  <CardContent>
+                    <Typography variant="h5" gutterBottom sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                    }}>
+                      <GroupIcon color="primary" />
+                      Collaborations
+                    </Typography>
+                    <Box display="flex" justifyContent="space-around" mt={2}>
+                      <Box textAlign="center">
+                        <Typography variant="h4" color="warning.main" fontWeight="bold">
+                          {pendingInvites}
                   </Typography>
                   <Typography variant="body2" color="textSecondary">
-                    Start by saving grants from the search results to track your applications.
+                          Pending Invites
                   </Typography>
                 </Box>
+                      <Box textAlign="center">
+                        <Typography variant="h4" color="success.main" fontWeight="bold">
+                          {activeCollaborations.length}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary">
+                          Active Collaborations
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </StyledCard>
               </Grid>
-            )}
+            </Grid>
+
+            {/* Pipeline Stages Overview */}
+            <Paper sx={{ 
+              mb: 3, 
+              p: { xs: 2, sm: 3, md: 4 },
+              width: '100%',
+              maxWidth: '100%'
+            }}>
+              <Typography variant="h5" gutterBottom sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AssessmentIcon color="primary" />
+                Grant Pipeline Stages
+              </Typography>
+              
+              <Grid container spacing={{ xs: 1, sm: 1.5, md: 2 }} sx={{ width: '100%' }}>
+                {pipelineStages.map((stage, index) => {
+                  const stageGrants = savedGrants.filter(grant => {
+                    // Map grant status to pipeline stage
+                    const statusMap = {
+                      'saved': 'Saved Grants',
+                      'pending': 'Saved Grants', // pending grants should be in saved grants stage
+                      'applying': 'Research & Planning',
+                      'submitted': 'Application Submitted',
+                      'awarded': 'Awarded',
+                      'rejected': 'Awarded' // map rejected to awarded stage for now
+                    };
+                    return statusMap[grant.status] === stage.name;
+                  });
+
+                  return (
+                    <Grid item xs={12} sm={6} md={3} key={stage.id} sx={{ minWidth: 0 }}>
+                      <Box sx={{ 
+                        width: '100%',
+                        maxWidth: '100%',
+                        overflow: 'hidden'
+                      }}>
+                        <StageHeader color={stage.color} order={index}>
+                          {getStageIcon(stage.name)}
+                          <Typography variant="subtitle2" fontWeight="bold" sx={{ 
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {stage.name}
+                          </Typography>
+                          <Chip
+                            label={stageGrants.length}
+                            size="small"
+                            sx={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                              color: 'white',
+                              fontWeight: 'bold',
+                              minWidth: '24px',
+                              height: '24px',
+                              fontSize: '0.75rem',
+                            }}
+                          />
+                        </StageHeader>
+                        
+                        <Box sx={{ 
+                          minHeight: '100px',
+                          p: 1.5,
+                          backgroundColor: theme.palette.background.default,
+                          borderRadius: '0 0 8px 8px',
+                          border: `1px solid ${alpha(stage.color, 0.2)}`,
+                          borderTop: 'none',
+                          maxHeight: '300px',
+                          overflowY: 'auto',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center'
+                        }}>
+                          {stageGrants.length > 0 ? (
+                            <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              {stageGrants.map((grant) => renderCompactGrantCard(grant))}
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="textSecondary" sx={{ 
+                              textAlign: 'center', 
+                              mt: 2,
+                              fontSize: '0.8rem'
+                            }}>
+                              No grants in this stage
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
           </Grid>
+                  );
+                })}
+              </Grid>
+            </Paper>
+          </Box>
         );
       
       case 1: // Collaboration Invites
@@ -914,6 +1029,53 @@ const SavedGrants = ({ onClose }) => {
       mx: 0,
       px: { xs: 1, sm: 2, md: 3 }
     }}>
+      {/* Tabs */}
+      <Paper sx={{ 
+        mb: 3,
+        width: '100%',
+        maxWidth: '100%'
+      }}>
+        <Tabs
+          value={currentTab}
+          onChange={(e, newValue) => setCurrentTab(newValue)}
+          variant="fullWidth"
+        >
+          <Tab
+            label={
+              <Badge badgeContent={totalGrants} color="primary">
+                Saved Grants
+              </Badge>
+            }
+            icon={<FolderIcon />}
+          />
+          <Tab
+            label={
+              <Badge badgeContent={pendingInvites} color="warning">
+                Invites
+              </Badge>
+            }
+            icon={<EmailIcon />}
+          />
+          <Tab
+            label={
+              <Badge badgeContent={activeCollaborations.length} color="success">
+                Collaborations
+              </Badge>
+            }
+            icon={<GroupIcon />}
+          />
+        </Tabs>
+      </Paper>
+
+      {/* Tab Content */}
+      <Box sx={{ 
+        width: '100%',
+        maxWidth: '100%',
+        p: { xs: 1, sm: 2, md: 3 }
+      }}>
+        {renderTabContent()}
+      </Box>
+
       {/* Summary Cards */}
       <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} mb={4} sx={{ width: '100%' }}>
         <Grid item xs={12} md={4}>
@@ -1034,8 +1196,8 @@ const SavedGrants = ({ onClose }) => {
           Grant Pipeline Stages
         </Typography>
         
-        <Grid container spacing={{ xs: 1, sm: 2, md: 3 }} sx={{ width: '100%' }}>
-          {pipelineStages.map((stage, index) => {
+         <Grid container spacing={{ xs: 1, sm: 1.5, md: 2 }} sx={{ width: '100%' }}>
+           {pipelineStages.map((stage, index) => {
              const stageGrants = savedGrants.filter(grant => {
                // Map grant status to pipeline stage
                const statusMap = {
@@ -1044,121 +1206,73 @@ const SavedGrants = ({ onClose }) => {
                  'applying': 'Research & Planning',
                  'submitted': 'Application Submitted',
                  'awarded': 'Awarded',
-                 'rejected': 'Not Awarded'
+                 'rejected': 'Awarded' // map rejected to awarded stage for now
                };
                return statusMap[grant.status] === stage.name;
              });
 
-            return (
-              <Grid item xs={12} sm={6} md={4} lg={2} key={stage.id}>
-                <StageHeader color={stage.color} order={index}>
-                  {getStageIcon(stage.name)}
-                  <Typography variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
-                    {stage.name}
-                  </Typography>
-                  <Chip
-                    label={stageGrants.length}
-                    size="small"
-                    sx={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      color: 'white',
-                      fontWeight: 'bold',
-                    }}
-                  />
-                </StageHeader>
-                
-                <Box sx={{ 
-                  minHeight: '120px',
-                  p: 2,
-                  backgroundColor: theme.palette.background.default,
-                  borderRadius: '0 0 8px 8px',
-                  border: `1px solid ${alpha(stage.color, 0.2)}`,
-                  borderTop: 'none'
-                }}>
-                  {stageGrants.length > 0 ? (
-                    <Box>
-                      {stageGrants.slice(0, 3).map((grant, grantIndex) => (
-                        <Box key={grant.id} sx={{ mb: 1 }}>
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontWeight: 'medium',
-                              color: theme.palette.text.primary,
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {grant.title}
-                          </Typography>
-                        </Box>
-                      ))}
-                      {stageGrants.length > 3 && (
-                        <Typography variant="caption" color="textSecondary">
-                          +{stageGrants.length - 3} more grants
-                        </Typography>
-                      )}
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', mt: 2 }}>
-                      No grants in this stage
-                    </Typography>
-                  )}
-                </Box>
-              </Grid>
-            );
-          })}
-        </Grid>
+             return (
+               <Grid item xs={12} sm={6} md={3} key={stage.id} sx={{ minWidth: 0 }}>
+                 <Box sx={{ 
+                   width: '100%',
+                   maxWidth: '100%',
+                   overflow: 'hidden'
+                 }}>
+                   <StageHeader color={stage.color} order={index}>
+                     {getStageIcon(stage.name)}
+                     <Typography variant="subtitle2" fontWeight="bold" sx={{ 
+                       flex: 1,
+                       minWidth: 0,
+                       overflow: 'hidden',
+                       textOverflow: 'ellipsis',
+                       whiteSpace: 'nowrap'
+                     }}>
+                       {stage.name}
+                     </Typography>
+                     <Chip
+                       label={stageGrants.length}
+                       size="small"
+                       sx={{
+                         backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                         color: 'white',
+                         fontWeight: 'bold',
+                         minWidth: '24px',
+                         height: '24px',
+                         fontSize: '0.75rem',
+                       }}
+                     />
+                   </StageHeader>
+                   
+                   <Box sx={{ 
+                     minHeight: '100px',
+                     p: 1.5,
+                     backgroundColor: theme.palette.background.default,
+                     borderRadius: '0 0 8px 8px',
+                     border: `1px solid ${alpha(stage.color, 0.2)}`,
+                     borderTop: 'none',
+                     maxHeight: '300px',
+                     overflowY: 'auto'
+                   }}>
+                     {stageGrants.length > 0 ? (
+                       <Box>
+                         {stageGrants.map((grant) => renderCompactGrantCard(grant))}
+                       </Box>
+                     ) : (
+                       <Typography variant="body2" color="textSecondary" sx={{ 
+                         textAlign: 'center', 
+                         mt: 2,
+                         fontSize: '0.8rem'
+                       }}>
+                         No grants in this stage
+                       </Typography>
+                     )}
+                   </Box>
+                 </Box>
+               </Grid>
+             );
+           })}
+         </Grid>
       </Paper>
-
-      {/* Tabs */}
-      <Paper sx={{ 
-        mb: 3,
-        width: '100%',
-        maxWidth: '100%'
-      }}>
-        <Tabs
-          value={currentTab}
-          onChange={(e, newValue) => setCurrentTab(newValue)}
-          variant="fullWidth"
-        >
-          <Tab
-            label={
-              <Badge badgeContent={totalGrants} color="primary">
-                Saved Grants
-              </Badge>
-            }
-            icon={<FolderIcon />}
-          />
-          <Tab
-            label={
-              <Badge badgeContent={pendingInvites} color="warning">
-                Invites
-              </Badge>
-            }
-            icon={<EmailIcon />}
-          />
-          <Tab
-            label={
-              <Badge badgeContent={activeCollaborations.length} color="success">
-                Collaborations
-              </Badge>
-            }
-            icon={<GroupIcon />}
-          />
-        </Tabs>
-      </Paper>
-
-      {/* Tab Content */}
-      <Box sx={{ 
-        width: '100%',
-        maxWidth: '100%',
-        p: { xs: 1, sm: 2, md: 3 }
-      }}>
-        {renderTabContent()}
-      </Box>
 
       {/* Grant Details Dialog */}
       <Dialog open={detailsDialogOpen} onClose={handleCloseDetailsDialog} maxWidth="md" fullWidth>

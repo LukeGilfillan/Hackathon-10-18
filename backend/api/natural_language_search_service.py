@@ -2,9 +2,10 @@
 Natural Language Search Service
 
 This service provides intelligent natural language search capabilities for grants and profiles
-using a two-stage AI approach:
-1. Stage 1: Generate database filters from natural language query
-2. Stage 2: AI ranking of top 25 results for relevance scoring
+using a three-stage AI approach:
+1. Stage 1: Generate database filters from natural language query using AI
+2. Stage 2: Rule-based scoring with enhanced fuzzy matching
+3. Stage 3: AI relevance analysis of top results directly against the search query
 """
 
 import json
@@ -87,10 +88,11 @@ class NaturalLanguageSearchService:
     @staticmethod
     def search_grants_with_nlp(query, limit=20):
         """
-        Search grants using two-stage scoring algorithm.
+        Search grants using three-stage AI scoring algorithm.
         
-        Stage 1: Generate search parameters from natural language query
-        Stage 2: Score all grants using the generated parameters
+        Stage 1: Generate search parameters from natural language query using AI
+        Stage 2: Rule-based scoring with enhanced fuzzy matching
+        Stage 3: AI relevance analysis of top results directly against the search query
         
         Args:
             query: Natural language search query
@@ -129,16 +131,37 @@ class NaturalLanguageSearchService:
             print("🤖 Stage 2: Scoring all grants using generated parameters...")
             scored_grants = NaturalLanguageSearchService._score_grants_with_params(query, search_params, all_grants)
             
-            # Check if we have good results (top score > 10)
-            if scored_grants and scored_grants[0][1] > 10:
-                print(f"✅ Rule-based scoring produced good results. Returning top {min(limit, len(scored_grants))} results")
-                return scored_grants[:limit]
-            else:
-                print("⚠️ Rule-based scoring produced low-quality results. Using AI scoring...")
-                # Use AI scoring for better semantic understanding
-                ai_scored_grants = NaturalLanguageSearchService._score_grants_with_ai(query, all_grants)
-                print(f"✅ AI scoring completed. Returning top {min(limit, len(ai_scored_grants))} results")
-                return ai_scored_grants[:limit]
+            # Only apply AI analysis to top results for direct query relevance
+            print("🤖 Stage 3: Applying AI relevance analysis to top results...")
+            try:
+                # Only process top results for AI analysis (more efficient)
+                top_results_for_ai = min(50, len(scored_grants))  # Process top 50 or all if less
+                if top_results_for_ai > 0:
+                    print(f"📊 Processing top {top_results_for_ai} results with AI analysis...")
+                    ai_analyzed = NaturalLanguageSearchService._score_grants_with_ai(
+                        query, [grant for grant, _ in scored_grants[:top_results_for_ai]]
+                    )
+                    
+                    # Combine AI-analyzed results with remaining results
+                    if len(scored_grants) > top_results_for_ai:
+                        # Keep remaining results with original scores
+                        remaining_results = scored_grants[top_results_for_ai:]
+                        scored_grants = ai_analyzed + remaining_results
+                    else:
+                        scored_grants = ai_analyzed
+                    
+                    # Re-sort by final scores
+                    scored_grants.sort(key=lambda x: x[1], reverse=True)
+                    print(f"✅ AI relevance analysis completed on top {top_results_for_ai} results")
+                else:
+                    print("⚠️ No grants to analyze with AI")
+                    
+            except Exception as e:
+                print(f"⚠️ AI relevance analysis failed: {str(e)}")
+                # Fallback to original results
+                print(f"✅ Using rule-based scoring results. Returning top {min(limit, len(scored_grants))} results")
+            
+            return scored_grants[:limit]
                 
         except Exception as e:
             print(f"❌ Natural language search failed: {str(e)}")
@@ -634,10 +657,11 @@ class NaturalLanguageSearchService:
     @staticmethod
     def search_profiles_with_nlp(query, limit=20):
         """
-        Search researcher profiles using two-stage scoring algorithm.
+        Search researcher profiles using three-stage AI scoring algorithm.
         
-        Stage 1: Generate search parameters from natural language query
-        Stage 2: Score all profiles using the generated parameters
+        Stage 1: Generate search parameters from natural language query using AI
+        Stage 2: Rule-based scoring with enhanced fuzzy matching
+        Stage 3: AI relevance analysis of top results directly against the search query
         
         Args:
             query: Natural language search query
@@ -675,9 +699,37 @@ class NaturalLanguageSearchService:
             # Score all profiles using the generated parameters
             print("🤖 Stage 2: Scoring all profiles using generated parameters...")
             scored_profiles = NaturalLanguageSearchService._score_profiles_with_params(query, search_params, all_profiles)
-            print(f"✅ Scoring completed. Returning top {min(limit, len(scored_profiles))} results")
             
-            # Return top results up to limit
+            # Only apply AI analysis to top results for direct query relevance
+            print("🤖 Stage 3: Applying AI relevance analysis to top results...")
+            try:
+                # Only process top results for AI analysis (more efficient)
+                top_results_for_ai = min(50, len(scored_profiles))  # Process top 50 or all if less
+                if top_results_for_ai > 0:
+                    print(f"📊 Processing top {top_results_for_ai} results with AI analysis...")
+                    ai_analyzed = NaturalLanguageSearchService._score_profiles_with_ai(
+                        query, [profile for profile, _ in scored_profiles[:top_results_for_ai]]
+                    )
+                    
+                    # Combine AI-analyzed results with remaining results
+                    if len(scored_profiles) > top_results_for_ai:
+                        # Keep remaining results with original scores
+                        remaining_results = scored_profiles[top_results_for_ai:]
+                        scored_profiles = ai_analyzed + remaining_results
+                    else:
+                        scored_profiles = ai_analyzed
+                    
+                    # Re-sort by final scores
+                    scored_profiles.sort(key=lambda x: x[1], reverse=True)
+                    print(f"✅ AI relevance analysis completed on top {top_results_for_ai} results")
+                else:
+                    print("⚠️ No profiles to analyze with AI")
+                    
+            except Exception as e:
+                print(f"⚠️ AI relevance analysis failed: {str(e)}")
+                # Fallback to original results
+                print(f"✅ Using rule-based scoring results. Returning top {min(limit, len(scored_profiles))} results")
+            
             return scored_profiles[:limit]
                 
         except Exception as e:

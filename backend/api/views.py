@@ -1364,9 +1364,9 @@ def natural_language_search_grants(request):
                 'error': 'Invalid limit parameter'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        logger.info(f"Starting two-stage natural language grant search for query: '{query}'")
+        logger.info(f"Starting three-stage natural language grant search for query: '{query}'")
         
-        # Perform two-stage natural language search
+        # Perform three-stage natural language search
         scored_grants = NaturalLanguageSearchService.search_grants_with_nlp(query, limit)
         
         # Handle case where search service returns None or empty results
@@ -1410,18 +1410,19 @@ def natural_language_search_grants(request):
             'grants': results_with_scores,
             'count': len(results_with_scores),
             'query': query,
-            'search_type': 'two_stage_natural_language',
+            'search_type': 'three_stage_natural_language',
             'stages': {
                 'stage1': 'AI-generated database filters',
-                'stage2': 'AI relevance ranking of top 25 results'
+                'stage2': 'Rule-based scoring with enhanced fuzzy matching',
+                'stage3': 'AI relevance analysis of top results against search query'
             },
             'message': f'Found {len(results_with_scores)} grants for query: {query}' if len(results_with_scores) > 0 else f'No grants found for query: {query}'
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
-        logger.error(f"Two-stage natural language grant search failed: {str(e)}")
+        logger.error(f"Three-stage natural language grant search failed: {str(e)}")
         return Response({
-            'error': 'Failed to perform two-stage natural language search',
+            'error': 'Failed to perform three-stage natural language search',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1448,9 +1449,9 @@ def natural_language_search_profiles(request):
                 'error': 'Invalid limit parameter'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        logger.info(f"Starting two-stage natural language profile search for query: '{query}'")
+        logger.info(f"Starting three-stage natural language profile search for query: '{query}'")
         
-        # Perform two-stage natural language search
+        # Perform three-stage natural language search
         scored_profiles = NaturalLanguageSearchService.search_profiles_with_nlp(query, limit)
         
         # Handle case where search service returns None or empty results
@@ -1494,10 +1495,11 @@ def natural_language_search_profiles(request):
             'profiles': results_with_scores,
             'count': len(results_with_scores),
             'query': query,
-            'search_type': 'two_stage_natural_language',
+            'search_type': 'three_stage_natural_language',
             'stages': {
                 'stage1': 'AI-generated database filters',
-                'stage2': 'AI relevance ranking of top 25 results'
+                'stage2': 'Rule-based scoring with enhanced fuzzy matching',
+                'stage3': 'AI relevance analysis of top results against search query'
             },
             'message': f'Found {len(results_with_scores)} profiles for query: {query}' if len(results_with_scores) > 0 else f'No profiles found for query: {query}'
         }, status=status.HTTP_200_OK)
@@ -1505,7 +1507,7 @@ def natural_language_search_profiles(request):
     except Exception as e:
         logger.error(f"Two-stage natural language profile search failed: {str(e)}")
         return Response({
-            'error': 'Failed to perform two-stage natural language search',
+            'error': 'Failed to perform three-stage natural language search',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
