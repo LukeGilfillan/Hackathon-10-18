@@ -471,6 +471,8 @@ const SavedGrants = ({ onClose }) => {
 
   const handleCreateProposal = async () => {
     try {
+      setIsCreatingProposal(true);
+      
       const sessionToken = localStorage.getItem('session_token');
       const professorProfile = JSON.parse(localStorage.getItem('professor_profile') || '{}');
       
@@ -512,13 +514,18 @@ const SavedGrants = ({ onClose }) => {
           downloadProposalDocument(data.id);
         }
       } else if (response.status === 409) {
-        // Draft already exists
+        // Draft already exists - download it instead
         setSnackbar({
           open: true,
-          message: `A proposal draft already exists for this grant (ID: ${data.existing_draft_id})`,
-          severity: 'warning'
+          message: 'Proposal already exists! Downloading existing draft...',
+          severity: 'info'
         });
         handleCloseProposalDialog();
+        
+        // Download the existing draft
+        if (data.existing_draft_id) {
+          downloadProposalDocument(data.existing_draft_id);
+        }
       } else {
         throw new Error(data.error || data.detail || 'Failed to create proposal draft');
       }
@@ -528,6 +535,8 @@ const SavedGrants = ({ onClose }) => {
         message: err.message,
         severity: 'error'
       });
+    } finally {
+      setIsCreatingProposal(false);
     }
   };
 
@@ -1413,13 +1422,30 @@ const SavedGrants = ({ onClose }) => {
       </Dialog>
 
       {/* Create Proposal Dialog */}
-      <Dialog open={proposalDialogOpen} onClose={handleCloseProposalDialog} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={proposalDialogOpen} 
+        onClose={isCreatingProposal ? undefined : handleCloseProposalDialog} 
+        maxWidth="sm" 
+        fullWidth
+      >
         <DialogTitle>Create Grant Proposal</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
-            <Typography variant="body2" color="textSecondary" gutterBottom>
-              Create an AI-generated proposal draft for: <strong>{selectedGrant?.title}</strong>
-            </Typography>
+            {isCreatingProposal ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4 }}>
+                <CircularProgress size={60} sx={{ mb: 2 }} />
+                <Typography variant="h6" gutterBottom>
+                  Creating Your Proposal
+                </Typography>
+                <Typography variant="body2" color="textSecondary" textAlign="center">
+                  Our AI is generating a comprehensive grant proposal based on your profile and the grant requirements. This may take a few moments...
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Create an AI-generated proposal draft for: <strong>{selectedGrant?.title}</strong>
+                </Typography>
             <TextField
               fullWidth
               label="Proposal Title (Optional)"
@@ -1439,17 +1465,22 @@ const SavedGrants = ({ onClose }) => {
               placeholder="e.g., Focus on machine learning applications, emphasize interdisciplinary collaboration, highlight student training opportunities..."
               helperText="Provide specific instructions to guide the AI in generating your proposal draft"
             />
+              </>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseProposalDialog}>Cancel</Button>
+          <Button onClick={handleCloseProposalDialog} disabled={isCreatingProposal}>
+            Cancel
+          </Button>
           <Button
             onClick={handleCreateProposal}
             variant="contained"
             color="secondary"
-            startIcon={<DescriptionIcon />}
+            disabled={isCreatingProposal}
+            startIcon={isCreatingProposal ? <CircularProgress size={20} /> : <DescriptionIcon />}
           >
-            Create & Download Proposal
+            {isCreatingProposal ? 'Creating Proposal...' : 'Create & Download Proposal'}
           </Button>
         </DialogActions>
       </Dialog>

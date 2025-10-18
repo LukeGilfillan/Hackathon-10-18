@@ -689,7 +689,7 @@ class NaturalLanguageSearchService:
             
             # Stage 2: Get all profiles and score them using the parameters
             print("📊 Stage 2: Retrieving profiles from database...")
-            all_profiles = list(ResearcherProfile.objects.all()[:100])
+            all_profiles = list(ResearcherProfile.objects.all()[:25])
             logger.info(f"Retrieved {len(all_profiles)} profiles from database")
             print(f"✅ Retrieved {len(all_profiles)} profiles from database")
             

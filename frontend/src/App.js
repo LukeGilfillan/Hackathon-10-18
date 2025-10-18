@@ -21,6 +21,7 @@ import ProfessorOverview from './ProfessorOverview';
 import SearchResultsWrapper from './SearchResultsWrapper';
 import Forum from './Forum';
 import CardinalConcordiaChatbot from './CardinalConcordiaChatbot';
+import TeamRecommendations from './TeamRecommendations';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -703,6 +704,12 @@ function App() {
             👥 Find Researchers
           </button>
           <button 
+            style={activeTab === 'teams' ? {...styles.tabButton, ...styles.tabButtonActive} : styles.tabButton}
+            onClick={() => setActiveTab('teams')}
+          >
+            🤝 Team Recommendations
+          </button>
+          <button 
             style={activeTab === 'saved' ? {...styles.tabButton, ...styles.tabButtonActive} : styles.tabButton}
             onClick={() => setActiveTab('saved')}
           >
@@ -894,6 +901,12 @@ function App() {
           />
         )}
 
+        {activeTab === 'teams' && (
+          <TeamRecommendations
+            currentUser={currentUser}
+            onError={setError}
+          />
+        )}
 
         {activeTab === 'saved' && (
           <SavedGrants
