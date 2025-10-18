@@ -50,6 +50,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import EmailIcon from '@mui/icons-material/Email';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
+import DownloadIcon from '@mui/icons-material/Download';
 import { faHourglassHalf } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { alpha } from '@mui/material/styles';
@@ -185,6 +186,7 @@ const SavedGrants = ({ onClose }) => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [inviteResponseDialogOpen, setInviteResponseDialogOpen] = useState(false);
   const [selectedInvite, setSelectedInvite] = useState(null);
+  const [proposalDialogOpen, setProposalDialogOpen] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [inviteForm, setInviteForm] = useState({
@@ -199,6 +201,11 @@ const SavedGrants = ({ onClose }) => {
     is_public: false,
     allow_collaboration: true
   });
+  const [proposalForm, setProposalForm] = useState({
+    custom_instructions: '',
+    title: ''
+  });
+  const [isCreatingProposal, setIsCreatingProposal] = useState(false);
   const theme = useTheme();
 
   const statusColors = {
@@ -366,6 +373,24 @@ const SavedGrants = ({ onClose }) => {
     setSelectedInvite(null);
   };
 
+  const handleOpenProposalDialog = (grant) => {
+    setSelectedGrant(grant);
+    setProposalForm({
+      custom_instructions: '',
+      title: grant.title || ''
+    });
+    setProposalDialogOpen(true);
+  };
+
+  const handleCloseProposalDialog = () => {
+    setProposalDialogOpen(false);
+    setSelectedGrant(null);
+    setProposalForm({
+      custom_instructions: '',
+      title: ''
+    });
+  };
+
   const handleSendInvite = async () => {
     try {
       const response = await fetch('/api/collaboration-invites/', {
@@ -444,6 +469,68 @@ const SavedGrants = ({ onClose }) => {
     }
   };
 
+  const handleCreateProposal = async () => {
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      const professorProfile = JSON.parse(localStorage.getItem('professor_profile') || '{}');
+      
+      if (!sessionToken || !professorProfile.id) {
+        setSnackbar({
+          open: true,
+          message: 'Please sign in to create a proposal',
+          severity: 'error'
+        });
+        return;
+      }
+
+      const response = await fetch('http://localhost:8000/api/proposals/drafts/create/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${sessionToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          professor_id: professorProfile.id,
+          grant_id: selectedGrant.id,
+          custom_instructions: proposalForm.custom_instructions,
+          title: proposalForm.title || selectedGrant.title
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSnackbar({
+          open: true,
+          message: 'Proposal draft created successfully! Downloading Word document...',
+          severity: 'success'
+        });
+        handleCloseProposalDialog();
+        
+        // Immediately download the Word document
+        if (data.id) {
+          downloadProposalDocument(data.id);
+        }
+      } else if (response.status === 409) {
+        // Draft already exists
+        setSnackbar({
+          open: true,
+          message: `A proposal draft already exists for this grant (ID: ${data.existing_draft_id})`,
+          severity: 'warning'
+        });
+        handleCloseProposalDialog();
+      } else {
+        throw new Error(data.error || data.detail || 'Failed to create proposal draft');
+      }
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.message,
+        severity: 'error'
+      });
+    }
+  };
+
 
   const handleInviteResponse = async (response) => {
     try {
@@ -480,6 +567,51 @@ const SavedGrants = ({ onClose }) => {
 
   const handleCloseSnackbar = () => {
     setSnackbar({ ...snackbar, open: false });
+  };
+
+  const downloadProposalDocument = async (draftId) => {
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      if (!sessionToken) return;
+      
+      const response = await fetch(`http://localhost:8000/api/proposals/drafts/${draftId}/download/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Token ${sessionToken}`,
+        }
+      });
+
+      if (response.ok) {
+        // Get the filename from the Content-Disposition header
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'Grant_Proposal.docx';
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+
+        // Create blob and download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        throw new Error('Failed to download document');
+      }
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to download document: ' + err.message,
+        severity: 'error'
+      });
+    }
   };
 
   // Calculate statistics
@@ -631,6 +763,21 @@ const SavedGrants = ({ onClose }) => {
                 }}
               >
                <InfoIcon sx={{ fontSize: '0.9rem' }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Create Proposal">
+              <IconButton
+                size="small"
+                onClick={() => handleOpenProposalDialog(grant)}
+                sx={{
+                 p: 0.3,
+                  color: theme.palette.secondary.main,
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                  }
+                }}
+              >
+               <DescriptionIcon sx={{ fontSize: '0.9rem' }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Edit Grant">
@@ -1261,6 +1408,48 @@ const SavedGrants = ({ onClose }) => {
             color="success"
           >
             Accept
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Proposal Dialog */}
+      <Dialog open={proposalDialogOpen} onClose={handleCloseProposalDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Grant Proposal</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Typography variant="body2" color="textSecondary" gutterBottom>
+              Create an AI-generated proposal draft for: <strong>{selectedGrant?.title}</strong>
+            </Typography>
+            <TextField
+              fullWidth
+              label="Proposal Title (Optional)"
+              value={proposalForm.title}
+              onChange={(e) => setProposalForm({ ...proposalForm, title: e.target.value })}
+              margin="normal"
+              placeholder={selectedGrant?.title}
+            />
+            <TextField
+              fullWidth
+              label="Custom Instructions (Optional)"
+              value={proposalForm.custom_instructions}
+              onChange={(e) => setProposalForm({ ...proposalForm, custom_instructions: e.target.value })}
+              margin="normal"
+              multiline
+              rows={4}
+              placeholder="e.g., Focus on machine learning applications, emphasize interdisciplinary collaboration, highlight student training opportunities..."
+              helperText="Provide specific instructions to guide the AI in generating your proposal draft"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseProposalDialog}>Cancel</Button>
+          <Button
+            onClick={handleCreateProposal}
+            variant="contained"
+            color="secondary"
+            startIcon={<DescriptionIcon />}
+          >
+            Create & Download Proposal
           </Button>
         </DialogActions>
       </Dialog>

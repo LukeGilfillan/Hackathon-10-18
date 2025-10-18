@@ -33,8 +33,8 @@ const StyledDialog = styled(Dialog)(({ theme }) => ({
     maxHeight: '90vh',
     display: 'flex',
     flexDirection: 'column',
-    width: '500px',
-    height: '600px',
+    width: '700px',
+    height: '700px',
   },
 }));
 
@@ -384,8 +384,8 @@ const CardinalConcordiaDialog = ({ open, onClose }) => {
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
           }}>
             <img
-              src="/images/ConcordiaLogo.png"
-              alt="Cardinal Concordia"
+              src="/images/Mascot.png"
+              alt="Cardinal Concordia Mascot"
               style={{
                 width: '100%',
                 height: '100%',
@@ -444,8 +444,8 @@ const CardinalConcordiaDialog = ({ open, onClose }) => {
                         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
                       }}>
                         <img
-                          src="/images/ConcordiaLogo.png"
-                          alt="Cardinal Concordia"
+                          src="/images/Mascot.png"
+                          alt="Cardinal Concordia Mascot"
                           style={{
                             width: '32px',
                             height: '32px',

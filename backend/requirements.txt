@@ -58,3 +58,6 @@ asgiref==3.10.0
 
 # Database
 sqlparse==0.5.3
+
+# Document Generation
+python-docx==1.1.2

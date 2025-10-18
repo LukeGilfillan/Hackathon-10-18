@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, auth_views
+from . import views, auth_views, team_recommendations_views
 
 urlpatterns = [
     path('hello/', views.hello_world, name='hello_world'),
@@ -52,4 +52,9 @@ urlpatterns = [
     
     # Chatbot endpoint
     path('chatbot/', views.cardinal_concordia_chatbot, name='cardinal_concordia_chatbot'),
+    
+    # Team Recommendations endpoints
+    path('team-recommendations/', team_recommendations_views.get_team_recommendations, name='get_team_recommendations'),
+    path('grants/<int:grant_id>/team-suggestions/', team_recommendations_views.get_grant_team_suggestions, name='get_grant_team_suggestions'),
+    path('team-pitch/generate/', team_recommendations_views.generate_custom_team_pitch, name='generate_custom_team_pitch'),
 ]
