@@ -58,6 +58,7 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
 
   const statusColors = {
     'saved': theme.palette.info.main,
+    'pending': theme.palette.info.main, // pending should use the same color as saved
     'applying': theme.palette.warning.main,
     'submitted': theme.palette.primary.main,
     'awarded': theme.palette.success.main,
@@ -66,6 +67,7 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
 
   const statusIcons = {
     'saved': <FolderIcon sx={{ color: 'white', fontSize: 16 }} />,
+    'pending': <FolderIcon sx={{ color: 'white', fontSize: 16 }} />, // pending should use the same icon as saved
     'applying': <ScienceIcon sx={{ color: 'white', fontSize: 16 }} />,
     'submitted': <TrendingUpIcon sx={{ color: 'white', fontSize: 16 }} />,
     'awarded': <AssessmentIcon sx={{ color: 'white', fontSize: 16 }} />,

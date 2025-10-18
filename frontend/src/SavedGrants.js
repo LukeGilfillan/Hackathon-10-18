@@ -37,8 +37,10 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import FolderIcon from '@mui/icons-material/Folder';
 import ScienceIcon from '@mui/icons-material/Science';
+import DescriptionIcon from '@mui/icons-material/Description';
 import SendIcon from '@mui/icons-material/Send';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import BlockIcon from '@mui/icons-material/Block';
@@ -195,6 +197,7 @@ const SavedGrants = ({ onClose }) => {
 
   const statusColors = {
     'saved': theme.palette.info.main,
+    'pending': theme.palette.info.main, // pending should use the same color as saved
     'applying': theme.palette.warning.main,
     'submitted': theme.palette.primary.main,
     'awarded': theme.palette.success.main,
@@ -205,7 +208,7 @@ const SavedGrants = ({ onClose }) => {
   const pipelineStages = [
     {
       id: 1,
-      name: 'Saved Opportunities',
+      name: 'Saved Grants',
       color: theme.palette.info.main,
       order: 0
     },
@@ -243,6 +246,7 @@ const SavedGrants = ({ onClose }) => {
 
   const statusIcons = {
     'saved': <FolderIcon sx={{ color: 'white' }} />,
+    'pending': <FolderIcon sx={{ color: 'white' }} />, // pending should use the same icon as saved
     'applying': <ScienceIcon sx={{ color: 'white' }} />,
     'submitted': <SendIcon sx={{ color: 'white' }} />,
     'awarded': <EmojiEventsIcon sx={{ color: 'white' }} />,
@@ -540,21 +544,23 @@ const SavedGrants = ({ onClose }) => {
     return acc;
   }, {});
 
-  // Get stage icons based on stage name
-  const getStageIcon = (stageName) => {
-    const iconMap = {
-      'saved': <FolderIcon sx={{ color: 'white' }} />,
-      'research': <ScienceIcon sx={{ color: 'white' }} />,
-      'proposal': <DescriptionIcon sx={{ color: 'white' }} />,
-      'submitted': <SendIcon sx={{ color: 'white' }} />,
-      'awarded': <EmojiEventsIcon sx={{ color: 'white' }} />,
-      'not_won': <BlockIcon sx={{ color: 'white' }} />
-    };
+   // Get stage icons based on stage name
+   const getStageIcon = (stageName) => {
+     const iconMap = {
+       'saved': <FolderIcon sx={{ color: 'white' }} />,
+       'pending': <FolderIcon sx={{ color: 'white' }} />,
+       'saved_grants': <FolderIcon sx={{ color: 'white' }} />,
+       'research': <ScienceIcon sx={{ color: 'white' }} />,
+       'proposal': <DescriptionIcon sx={{ color: 'white' }} />,
+       'submitted': <SendIcon sx={{ color: 'white' }} />,
+       'awarded': <EmojiEventsIcon sx={{ color: 'white' }} />,
+       'not_won': <BlockIcon sx={{ color: 'white' }} />
+     };
 
-    // Try to match based on stage name
-    const stageKey = stageName.toLowerCase().replace(/\s+/g, '_');
-    return iconMap[stageKey] || <AssessmentIcon sx={{ color: 'white' }} />;
-  };
+     // Try to match based on stage name
+     const stageKey = stageName.toLowerCase().replace(/\s+/g, '_');
+     return iconMap[stageKey] || <AssessmentIcon sx={{ color: 'white' }} />;
+   };
 
   const pieChartData = Object.entries(statusCounts).map(([status, count]) => ({
     name: status.charAt(0).toUpperCase() + status.slice(1),
@@ -742,10 +748,10 @@ const SavedGrants = ({ onClose }) => {
     switch (currentTab) {
       case 0: // Saved Grants
         return (
-          <Grid container spacing={3}>
+          <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} sx={{ width: '100%' }}>
             {savedGrants.length > 0 ? (
               savedGrants.map(grant => (
-                <Grid item xs={12} md={6} lg={4} key={grant.id}>
+                <Grid item xs={12} sm={6} md={4} lg={3} xl={2} key={grant.id}>
                   {renderGrantCard(grant)}
                 </Grid>
               ))
@@ -901,9 +907,15 @@ const SavedGrants = ({ onClose }) => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ 
+      width: '100%',
+      maxWidth: '100%',
+      p: { xs: 2, sm: 3, md: 4 },
+      mx: 0,
+      px: { xs: 1, sm: 2, md: 3 }
+    }}>
       {/* Summary Cards */}
-      <Grid container spacing={3} mb={4}>
+      <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} mb={4} sx={{ width: '100%' }}>
         <Grid item xs={12} md={4}>
           <StyledCard elevation={3}>
             <CardContent>
@@ -1011,28 +1023,34 @@ const SavedGrants = ({ onClose }) => {
       </Grid>
 
       {/* Pipeline Stages Overview */}
-      <Paper sx={{ mb: 3, p: 3 }}>
+      <Paper sx={{ 
+        mb: 3, 
+        p: { xs: 2, sm: 3, md: 4 },
+        width: '100%',
+        maxWidth: '100%'
+      }}>
         <Typography variant="h5" gutterBottom sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
           <AssessmentIcon color="primary" />
           Grant Pipeline Stages
         </Typography>
         
-        <Grid container spacing={2}>
+        <Grid container spacing={{ xs: 1, sm: 2, md: 3 }} sx={{ width: '100%' }}>
           {pipelineStages.map((stage, index) => {
-            const stageGrants = savedGrants.filter(grant => {
-              // Map grant status to pipeline stage
-              const statusMap = {
-                'saved': 'Saved Opportunities',
-                'applying': 'Research & Planning',
-                'submitted': 'Application Submitted',
-                'awarded': 'Awarded',
-                'rejected': 'Not Awarded'
-              };
-              return statusMap[grant.status] === stage.name;
-            });
+             const stageGrants = savedGrants.filter(grant => {
+               // Map grant status to pipeline stage
+               const statusMap = {
+                 'saved': 'Saved Grants',
+                 'pending': 'Saved Grants', // pending grants should be in saved grants stage
+                 'applying': 'Research & Planning',
+                 'submitted': 'Application Submitted',
+                 'awarded': 'Awarded',
+                 'rejected': 'Not Awarded'
+               };
+               return statusMap[grant.status] === stage.name;
+             });
 
             return (
-              <Grid item xs={12} sm={6} md={4} key={stage.id}>
+              <Grid item xs={12} sm={6} md={4} lg={2} key={stage.id}>
                 <StageHeader color={stage.color} order={index}>
                   {getStageIcon(stage.name)}
                   <Typography variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
@@ -1096,7 +1114,11 @@ const SavedGrants = ({ onClose }) => {
       </Paper>
 
       {/* Tabs */}
-      <Paper sx={{ mb: 3 }}>
+      <Paper sx={{ 
+        mb: 3,
+        width: '100%',
+        maxWidth: '100%'
+      }}>
         <Tabs
           value={currentTab}
           onChange={(e, newValue) => setCurrentTab(newValue)}
@@ -1130,7 +1152,13 @@ const SavedGrants = ({ onClose }) => {
       </Paper>
 
       {/* Tab Content */}
-      {renderTabContent()}
+      <Box sx={{ 
+        width: '100%',
+        maxWidth: '100%',
+        p: { xs: 1, sm: 2, md: 3 }
+      }}>
+        {renderTabContent()}
+      </Box>
 
       {/* Grant Details Dialog */}
       <Dialog open={detailsDialogOpen} onClose={handleCloseDetailsDialog} maxWidth="md" fullWidth>

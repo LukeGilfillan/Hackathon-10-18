@@ -400,13 +400,20 @@ def get_professor_recommendations(request):
             # Continue with original scores if LLM analysis fails
             scored_grants = scored_grants[:limit]
         
-        # Remove duplicates based on grant ID while preserving order
+        # Remove duplicates based on grant ID and title while preserving order
         seen_grant_ids = set()
+        seen_grant_titles = set()
         unique_scored_grants = []
         for grant, score in scored_grants:
-            if grant.id not in seen_grant_ids:
+            # Check for both ID and title duplicates
+            grant_title_normalized = grant.title.lower().strip() if grant.title else ""
+            
+            if grant.id not in seen_grant_ids and grant_title_normalized not in seen_grant_titles:
                 seen_grant_ids.add(grant.id)
+                seen_grant_titles.add(grant_title_normalized)
                 unique_scored_grants.append((grant, score))
+            else:
+                logger.info(f"Removed duplicate grant: ID={grant.id}, Title='{grant.title}'")
         
         scored_grants = unique_scored_grants
         
@@ -1368,13 +1375,20 @@ def natural_language_search_grants(request):
         
         logger.info(f"Found {len(scored_grants)} grants with relevance scores")
         
-        # Remove duplicates based on grant ID while preserving order
+        # Remove duplicates based on grant ID and title while preserving order
         seen_grant_ids = set()
+        seen_grant_titles = set()
         unique_scored_grants = []
         for grant, score in scored_grants:
-            if grant.id not in seen_grant_ids:
+            # Check for both ID and title duplicates
+            grant_title_normalized = grant.title.lower().strip() if grant.title else ""
+            
+            if grant.id not in seen_grant_ids and grant_title_normalized not in seen_grant_titles:
                 seen_grant_ids.add(grant.id)
+                seen_grant_titles.add(grant_title_normalized)
                 unique_scored_grants.append((grant, score))
+            else:
+                logger.info(f"Removed duplicate grant from NLP search: ID={grant.id}, Title='{grant.title}'")
         
         scored_grants = unique_scored_grants
         
@@ -1445,13 +1459,20 @@ def natural_language_search_profiles(request):
         
         logger.info(f"Found {len(scored_profiles)} profiles with relevance scores")
         
-        # Remove duplicates based on profile email while preserving order
+        # Remove duplicates based on profile email and name while preserving order
         seen_profile_emails = set()
+        seen_profile_names = set()
         unique_scored_profiles = []
         for profile, score in scored_profiles:
-            if profile.email not in seen_profile_emails:
+            # Check for both email and name duplicates
+            profile_name_normalized = profile.name.lower().strip() if profile.name else ""
+            
+            if profile.email not in seen_profile_emails and profile_name_normalized not in seen_profile_names:
                 seen_profile_emails.add(profile.email)
+                seen_profile_names.add(profile_name_normalized)
                 unique_scored_profiles.append((profile, score))
+            else:
+                logger.info(f"Removed duplicate profile from NLP search: Email={profile.email}, Name='{profile.name}'")
         
         scored_profiles = unique_scored_profiles
         

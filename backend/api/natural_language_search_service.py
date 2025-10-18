@@ -128,10 +128,17 @@ class NaturalLanguageSearchService:
             # Score all grants using the generated parameters
             print("🤖 Stage 2: Scoring all grants using generated parameters...")
             scored_grants = NaturalLanguageSearchService._score_grants_with_params(query, search_params, all_grants)
-            print(f"✅ Scoring completed. Returning top {min(limit, len(scored_grants))} results")
             
-            # Return top results up to limit
-            return scored_grants[:limit]
+            # Check if we have good results (top score > 10)
+            if scored_grants and scored_grants[0][1] > 10:
+                print(f"✅ Rule-based scoring produced good results. Returning top {min(limit, len(scored_grants))} results")
+                return scored_grants[:limit]
+            else:
+                print("⚠️ Rule-based scoring produced low-quality results. Using AI scoring...")
+                # Use AI scoring for better semantic understanding
+                ai_scored_grants = NaturalLanguageSearchService._score_grants_with_ai(query, all_grants)
+                print(f"✅ AI scoring completed. Returning top {min(limit, len(ai_scored_grants))} results")
+                return ai_scored_grants[:limit]
                 
         except Exception as e:
             print(f"❌ Natural language search failed: {str(e)}")
@@ -172,10 +179,11 @@ class NaturalLanguageSearchService:
 
             Return a JSON object with these possible fields (include a field only if it's relevant to the query):
             - term (string): for general keyword search
+              * ALWAYS include the original query terms first
               * Include synonyms and related terms
               * Consider research-specific terminology
               * Include both specific and general terms
-              * Example: "AI research" could expand to "artificial intelligence machine learning deep learning neural networks computer vision natural language processing"
+              * Example: "AI research" could expand to "AI research artificial intelligence machine learning deep learning neural networks computer vision natural language processing"
 
             - agency_code (string): comma-separated agency codes
               * Include primary agency and related agencies
@@ -218,7 +226,7 @@ class NaturalLanguageSearchService:
             Input: "Find AI research grants from NSF in the next 30 days"
             Output:
             {{
-                "term": "artificial intelligence machine learning deep learning neural networks computer vision natural language processing AI research",
+                "term": "AI research artificial intelligence machine learning deep learning neural networks computer vision natural language processing",
                 "agency_code": "NSF",
                 "agency_name": "National Science Foundation",
                 "deadline_start": "{current_date}",
@@ -302,31 +310,60 @@ class NaturalLanguageSearchService:
                 score = 0
                 score_details = {}  # For debugging
                 
-                # Term matching score
+                # Term matching score - Enhanced with fuzzy matching
                 if search_params.get('term'):
                     term_score = 0
                     term_matches = []
                     terms = search_params['term'].split()
+                    
+                    # Get all text fields to search
+                    search_texts = {
+                        'title': grant.title.lower() if grant.title else '',
+                        'description': grant.description.lower() if grant.description else '',
+                        'category': grant.category_of_funding_activity.lower() if grant.category_of_funding_activity else '',
+                        'agency_name': grant.agency_name.lower() if grant.agency_name else '',
+                        'eligible_applicants': grant.eligible_applicants.lower() if grant.eligible_applicants else ''
+                    }
+                    
                     for term in terms:
                         if len(term) >= 3:
-                            # Check title
-                            if term.lower() in grant.title.lower():
-                                term_score += 5
-                                term_matches.append(f"title:{term}")
+                            term_lower = term.lower()
                             
-                            # Check description
-                            if grant.description and term.lower() in grant.description.lower():
-                                term_score += 4
-                                term_matches.append(f"desc:{term}")
+                            # Exact match scoring
+                            for field_name, field_text in search_texts.items():
+                                if term_lower in field_text:
+                                    if field_name == 'title':
+                                        term_score += 8  # Higher weight for title matches
+                                        term_matches.append(f"title:{term}")
+                                    elif field_name == 'description':
+                                        term_score += 5
+                                        term_matches.append(f"desc:{term}")
+                                    elif field_name == 'category':
+                                        term_score += 6
+                                        term_matches.append(f"category:{term}")
+                                    elif field_name == 'agency_name':
+                                        term_score += 4
+                                        term_matches.append(f"agency:{term}")
+                                    elif field_name == 'eligible_applicants':
+                                        term_score += 3
+                                        term_matches.append(f"eligible:{term}")
                             
-                            # Check category
-                            if grant.category_of_funding_activity and term.lower() in grant.category_of_funding_activity.lower():
-                                term_score += 3
-                                term_matches.append(f"category:{term}")
+                            # Fuzzy matching for related terms
+                            for field_name, field_text in search_texts.items():
+                                if field_text:
+                                    # Check for partial matches (at least 4 characters)
+                                    if len(term_lower) >= 4:
+                                        for word in field_text.split():
+                                            if len(word) >= 4 and term_lower in word:
+                                                term_score += 2
+                                                term_matches.append(f"fuzzy_{field_name}:{term}")
+                                            elif len(word) >= 4 and word in term_lower:
+                                                term_score += 2
+                                                term_matches.append(f"fuzzy_{field_name}:{term}")
                     
                     # Normalize term score
                     if terms:
-                        term_score = min(term_score, 25)  # Cap at 25 points
+                        term_score = min(term_score, 30)  # Increased cap to 30 points
                         score += term_score
                         score_details['term_score'] = term_score
                         score_details['term_matches'] = term_matches
