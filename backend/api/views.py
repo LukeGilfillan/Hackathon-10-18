@@ -165,12 +165,14 @@ def search_grants(request):
         # Serialize the results
         serializer = GrantSerializer(grants, many=True)
         
+        # Always return consistent structure, even with empty results
         return Response({
             'grants': serializer.data,
             'count': len(serializer.data),
             'total_count': total_count,
             'offset': offset,
-            'limit': limit
+            'limit': limit,
+            'message': f'Found {len(serializer.data)} grants' if len(serializer.data) > 0 else 'No grants found matching your criteria'
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
@@ -286,12 +288,14 @@ def search_profiles(request):
         # Serialize the results
         serializer = ResearcherProfileSerializer(profiles, many=True)
         
+        # Always return consistent structure, even with empty results
         return Response({
             'profiles': serializer.data,
             'count': len(serializer.data),
             'total_count': total_count,
             'offset': offset,
-            'limit': limit
+            'limit': limit,
+            'message': f'Found {len(serializer.data)} profiles' if len(serializer.data) > 0 else 'No profiles found matching your criteria'
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
@@ -362,7 +366,8 @@ def get_professor_recommendations(request):
                 'count': 0,
                 'next': None,
                 'previous': None,
-                'results': []
+                'results': [],
+                'message': f'No grant recommendations found for professor {professor_email}. Try updating your profile or preferences.'
             }, status=status.HTTP_200_OK)
         
         # Apply LLM relevance analysis to top grants
@@ -424,14 +429,16 @@ def get_professor_recommendations(request):
                     'count': len(scored_grants),
                     'next': None,
                     'previous': request.query_params.get('page', '1'),
-                    'results': []
+                    'results': [],
+                    'message': f'No results found for page {request.query_params.get("page", "1")}'
                 }, status=status.HTTP_200_OK)
             else:
                 return Response({
                     'count': 0,
                     'next': None,
                     'previous': None,
-                    'results': []
+                    'results': [],
+                    'message': 'No grant recommendations available at this time'
                 }, status=status.HTTP_200_OK)
         
         # Get recommendations in the correct order
@@ -1355,6 +1362,10 @@ def natural_language_search_grants(request):
         # Perform two-stage natural language search
         scored_grants = NaturalLanguageSearchService.search_grants_with_nlp(query, limit)
         
+        # Handle case where search service returns None or empty results
+        if not scored_grants:
+            scored_grants = []
+        
         logger.info(f"Found {len(scored_grants)} grants with relevance scores")
         
         # Remove duplicates based on grant ID while preserving order
@@ -1380,6 +1391,7 @@ def natural_language_search_grants(request):
             grant_data['relevance_score'] = scores[i] if i < len(scores) else 0.0
             results_with_scores.append(grant_data)
         
+        # Always return consistent structure, even with empty results
         return Response({
             'grants': results_with_scores,
             'count': len(results_with_scores),
@@ -1388,7 +1400,8 @@ def natural_language_search_grants(request):
             'stages': {
                 'stage1': 'AI-generated database filters',
                 'stage2': 'AI relevance ranking of top 25 results'
-            }
+            },
+            'message': f'Found {len(results_with_scores)} grants for query: {query}' if len(results_with_scores) > 0 else f'No grants found for query: {query}'
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
@@ -1426,6 +1439,10 @@ def natural_language_search_profiles(request):
         # Perform two-stage natural language search
         scored_profiles = NaturalLanguageSearchService.search_profiles_with_nlp(query, limit)
         
+        # Handle case where search service returns None or empty results
+        if not scored_profiles:
+            scored_profiles = []
+        
         logger.info(f"Found {len(scored_profiles)} profiles with relevance scores")
         
         # Remove duplicates based on profile email while preserving order
@@ -1451,6 +1468,7 @@ def natural_language_search_profiles(request):
             profile_data['relevance_score'] = scores[i] if i < len(scores) else 0.0
             results_with_scores.append(profile_data)
         
+        # Always return consistent structure, even with empty results
         return Response({
             'profiles': results_with_scores,
             'count': len(results_with_scores),
@@ -1459,7 +1477,8 @@ def natural_language_search_profiles(request):
             'stages': {
                 'stage1': 'AI-generated database filters',
                 'stage2': 'AI relevance ranking of top 25 results'
-            }
+            },
+            'message': f'Found {len(results_with_scores)} profiles for query: {query}' if len(results_with_scores) > 0 else f'No profiles found for query: {query}'
         }, status=status.HTTP_200_OK)
         
     except Exception as e:

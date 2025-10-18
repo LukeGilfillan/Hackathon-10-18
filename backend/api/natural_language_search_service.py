@@ -34,10 +34,10 @@ class NaturalLanguageSearchService:
     @staticmethod
     def search_grants_with_nlp(query, limit=20):
         """
-        Search grants using two-stage natural language processing.
+        Search grants using two-stage scoring algorithm.
         
-        Stage 1: Generate database filters from natural language query
-        Stage 2: AI ranking of top 25 results for relevance scoring
+        Stage 1: Generate search parameters from natural language query
+        Stage 2: Score all grants using the generated parameters
         
         Args:
             query: Natural language search query
@@ -55,35 +55,27 @@ class NaturalLanguageSearchService:
             return NaturalLanguageSearchService._fallback_search_grants(query, limit)
         
         try:
-            print(f"🔍 Starting natural language search for grants with query: '{query}'")
+            print(f"🔍 Starting two-stage grant search with query: '{query}'")
             
-            # Stage 1: Generate database filters
-            print("📝 Stage 1: Generating database filters using AI...")
-            filters = NaturalLanguageSearchService._generate_grant_filters(query)
-            logger.info(f"Generated filters for query '{query}': {filters}")
-            print(f"✅ Generated filters: {filters}")
+            # Stage 1: Generate search parameters from natural language query
+            print("📝 Stage 1: Generating search parameters using AI...")
+            search_params = NaturalLanguageSearchService._generate_grant_search_params(query)
+            logger.info(f"Generated search parameters for query '{query}': {search_params}")
+            print(f"✅ Generated search parameters: {search_params}")
             
-            # Apply filters to get candidate grants
-            print("🔎 Stage 1: Applying filters to database...")
-            candidate_grants = NaturalLanguageSearchService._apply_grant_filters(filters)
-            logger.info(f"Found {len(candidate_grants)} candidate grants")
-            print(f"✅ Found {len(candidate_grants)} candidate grants")
+            # Stage 2: Get all grants and score them using the parameters
+            print("📊 Stage 2: Retrieving grants from database...")
+            all_grants = list(Grant.objects.all()[:100])
+            logger.info(f"Retrieved {len(all_grants)} grants from database")
+            print(f"✅ Retrieved {len(all_grants)} grants from database")
             
-            if not candidate_grants:
+            if not all_grants:
                 return []
             
-            # Stage 2: AI ranking of top 25 results
-            print("🤖 Stage 2: AI ranking and relevance scoring...")
-            if len(candidate_grants) > 25:
-                # Take top 25 for AI ranking
-                top_candidates = candidate_grants[:25]
-                print(f"📊 Taking top 25 candidates for AI ranking (from {len(candidate_grants)} total)")
-            else:
-                top_candidates = candidate_grants
-                print(f"📊 Using all {len(candidate_grants)} candidates for AI ranking")
-            
-            scored_grants = NaturalLanguageSearchService._rank_grants_with_ai(query, top_candidates)
-            print(f"✅ AI ranking completed. Returning top {min(limit, len(scored_grants))} results")
+            # Score all grants using the generated parameters
+            print("🤖 Stage 2: Scoring all grants using generated parameters...")
+            scored_grants = NaturalLanguageSearchService._score_grants_with_params(query, search_params, all_grants)
+            print(f"✅ Scoring completed. Returning top {min(limit, len(scored_grants))} results")
             
             # Return top results up to limit
             return scored_grants[:limit]
@@ -94,76 +86,124 @@ class NaturalLanguageSearchService:
             print("🔄 Falling back to basic keyword search...")
             return NaturalLanguageSearchService._fallback_search_grants(query, limit)
     
+    
     @staticmethod
-    def _generate_grant_filters(query):
+    def _generate_grant_search_params(query):
         """
-        Stage 1: Generate database filters from natural language query using AI.
+        Stage 1: Generate search parameters from natural language query using AI.
         
         Args:
             query: Natural language search query
             
         Returns:
-            Dictionary of database filters
+            Dictionary of search parameters
         """
         try:
-            print(f"🤖 Generating grant filters for query: '{query}'")
+            print(f"🤖 Generating grant search parameters for query: '{query}'")
             # Configure Gemini
             genai.configure(api_key=settings.GEMINI_API_KEY)
             model = genai.GenerativeModel('gemini-2.5-flash')
             print("✅ Gemini model configured successfully")
             
+            # Get current date for context
+            from django.utils import timezone
+            current_date = timezone.now().strftime('%Y-%m-%d')
+            
             prompt = f"""
-            You are an expert database query generator for research grant databases.
-            
-            USER SEARCH QUERY: "{query}"
-            
-            Based on this natural language query, generate appropriate database filters to find relevant grants.
-            
-            Available grant fields for filtering:
-            - title: Grant title (text search)
-            - description: Grant description (text search)
-            - agency_code: Agency code (exact match: NSF, NIH, ED, DOE, etc.)
-            - agency_name: Agency name (text search)
-            - category_of_funding_activity: Funding category (text search)
-            - award_floor: Minimum award amount (number)
-            - award_ceiling: Maximum award amount (number)
-            - close_date: Application deadline (date)
-            - eligible_applicants: Eligible applicant types (text search)
-            
-            Generate filters that will help find the most relevant grants. Consider:
-            1. Keywords and phrases from the query
-            2. Research areas and disciplines mentioned
-            3. Funding agencies that might be relevant
-            4. Award amounts if mentioned
-            5. Deadlines or time constraints
-            6. Applicant eligibility requirements
-            
-            Return ONLY a JSON object with the filters:
+            You are an expert research funding consultant. Your task is to convert natural language queries into search parameters that will help users find relevant research grant opportunities. Always aim for broader, more inclusive search parameters to maximize relevant results.
+
+            Today's date is {current_date}. Use this for any relative date calculations.
+
+            Convert this natural language query into search parameters:
+            "{query}"
+
+            Return a JSON object with these possible fields (include a field only if it's relevant to the query):
+            - term (string): for general keyword search
+              * Include synonyms and related terms
+              * Consider research-specific terminology
+              * Include both specific and general terms
+              * Example: "AI research" could expand to "artificial intelligence machine learning deep learning neural networks computer vision natural language processing"
+
+            - agency_code (string): comma-separated agency codes
+              * Include primary agency and related agencies
+              * Examples: NSF, NIH, DOE, DOD, NASA, USDA, etc.
+              * Consider both specific and broader funding agencies
+
+            - agency_name (string): agency name keywords
+              * Use common variations of agency names
+              * Example: "NSF" expands to "National Science Foundation"
+
+            - category_keywords (array): funding category keywords
+              * Include primary and related research categories
+              * Examples: ["STEM", "education", "healthcare", "environment", "technology"]
+              * Consider both specific and broader categories
+
+            - min_award_amount (number): minimum award amount in dollars
+            - max_award_amount (number): maximum award amount in dollars
+              * Only include if specifically mentioned
+
+            - deadline_start (string): YYYY-MM-DD format
+            - deadline_end (string): YYYY-MM-DD format
+              * For date references:
+              * "next X days/weeks/months" -> actual date range
+              * "this month" -> current month range
+              * "this year" -> current year range
+              * If no dates specified, don't include these fields
+
+            - eligible_applicants (array): eligible applicant types
+              * Examples: ["universities", "nonprofits", "small businesses", "individuals"]
+              * Only include if specifically mentioned
+
+            - research_keywords (array): specific research area keywords
+              * Include technical terms, methodologies, or specialized research areas
+              * These will be used to search grant descriptions and titles
+              * Example: ["machine learning", "climate change", "cancer research", "renewable energy"]
+              * Only include if the query suggests specific research areas
+
+            Example inputs and outputs:
+
+            Input: "Find AI research grants from NSF in the next 30 days"
+            Output:
             {{
-                "text_filters": {{
-                    "title_keywords": ["keyword1", "keyword2"],
-                    "description_keywords": ["keyword1", "keyword2"],
-                    "category_keywords": ["category1", "category2"],
-                    "agency_name_keywords": ["agency1", "agency2"]
-                }},
-                "exact_filters": {{
-                    "agency_code": "NSF",
-                    "eligible_applicants": "universities"
-                }},
-                "numeric_filters": {{
-                    "min_award_floor": 100000,
-                    "max_award_ceiling": 1000000
-                }},
-                "date_filters": {{
-                    "close_date_after": "2024-01-01",
-                    "close_date_before": "2024-12-31"
-                }}
+                "term": "artificial intelligence machine learning deep learning neural networks computer vision natural language processing AI research",
+                "agency_code": "NSF",
+                "agency_name": "National Science Foundation",
+                "deadline_start": "{current_date}",
+                "deadline_end": "2024-04-19",
+                "research_keywords": ["artificial intelligence", "machine learning", "deep learning", "neural networks", "computer vision", "NLP"]
             }}
-            
-            Only include filters that are relevant to the query. Use null for unused filters.
+
+            Input: "Show me healthcare grants with award amounts over $500,000"
+            Output:
+            {{
+                "term": "healthcare health medical research biomedical clinical trials public health",
+                "agency_code": "NIH,CDC,HRSA",
+                "agency_name": "National Institutes of Health Centers for Disease Control",
+                "min_award_amount": 500000,
+                "research_keywords": ["healthcare", "medical research", "biomedical", "clinical trials", "public health", "disease prevention"]
+            }}
+
+            Input: "Find environmental research grants for universities"
+            Output:
+            {{
+                "term": "environmental research climate change sustainability renewable energy conservation ecology",
+                "agency_code": "NSF,EPA,DOE,USDA",
+                "agency_name": "National Science Foundation Environmental Protection Agency Department of Energy",
+                "eligible_applicants": ["universities", "colleges"],
+                "research_keywords": ["environmental", "climate change", "sustainability", "renewable energy", "conservation", "ecology"]
+            }}
+
+            Guidelines:
+            1. Always err on the side of being more inclusive with search terms and codes
+            2. Include related terms and codes to capture all relevant opportunities
+            3. Only include fields that are directly relevant to the query
+            4. All fields are optional - only include what makes sense
+            5. When in doubt, be broader rather than narrower
+
+            Return ONLY the JSON object, no additional text.
             """
             
-            print("📤 Sending prompt to Gemini for filter generation...")
+            print("📤 Sending prompt to Gemini for parameter generation...")
             response = model.generate_content(prompt)
             response_text = response.text.strip()
             print(f"📥 Received response from Gemini: {response_text[:200]}...")
@@ -173,120 +213,238 @@ class NaturalLanguageSearchService:
             end_idx = response_text.rfind('}') + 1
             if start_idx != -1 and end_idx != -1:
                 json_text = response_text[start_idx:end_idx]
-                filters = json.loads(json_text)
-                print(f"✅ Successfully parsed filters: {filters}")
-                return filters
+                params = json.loads(json_text)
+                print(f"✅ Successfully parsed search parameters: {params}")
+                return params
             
             print("⚠️ Could not parse JSON from Gemini response")
             return {}
             
         except Exception as e:
-            print(f"❌ Failed to generate filters: {str(e)}")
-            logger.error(f"Failed to generate filters: {str(e)}")
+            print(f"❌ Failed to generate search parameters: {str(e)}")
+            logger.error(f"Failed to generate search parameters: {str(e)}")
             return {}
     
     @staticmethod
-    def _apply_grant_filters(filters):
+    def _score_grants_with_params(query, search_params, grants):
         """
-        Apply generated filters to the Grant database.
-        
-        Args:
-            filters: Dictionary of database filters
-            
-        Returns:
-            List of Grant objects matching the filters
-        """
-        try:
-            print(f"🔎 Applying filters to grant database...")
-            query = Grant.objects.all()
-            
-            # Apply text filters - use OR logic between different field types
-            text_filters = filters.get('text_filters', {})
-            
-            # Combine all text searches with OR logic
-            text_q = Q()
-            
-            # Title keywords
-            title_keywords = text_filters.get('title_keywords', [])
-            if title_keywords:
-                for keyword in title_keywords:
-                    text_q |= Q(title__icontains=keyword)
-            
-            # Description keywords
-            desc_keywords = text_filters.get('description_keywords', [])
-            if desc_keywords:
-                for keyword in desc_keywords:
-                    text_q |= Q(description__icontains=keyword)
-            
-            # Category keywords
-            category_keywords = text_filters.get('category_keywords', [])
-            if category_keywords:
-                for keyword in category_keywords:
-                    text_q |= Q(category_of_funding_activity__icontains=keyword)
-            
-            # Agency name keywords
-            agency_keywords = text_filters.get('agency_name_keywords', [])
-            if agency_keywords:
-                for keyword in agency_keywords:
-                    text_q |= Q(agency_name__icontains=keyword)
-            
-            # Apply the combined text query if we have any text filters
-            if text_q:
-                query = query.filter(text_q)
-            
-            # Apply exact filters
-            exact_filters = filters.get('exact_filters', {})
-            if exact_filters.get('agency_code'):
-                query = query.filter(agency_code=exact_filters['agency_code'])
-            if exact_filters.get('eligible_applicants'):
-                query = query.filter(eligible_applicants__icontains=exact_filters['eligible_applicants'])
-            
-            # Apply numeric filters
-            numeric_filters = filters.get('numeric_filters', {})
-            if numeric_filters.get('min_award_floor'):
-                query = query.filter(award_floor__gte=numeric_filters['min_award_floor'])
-            if numeric_filters.get('max_award_ceiling'):
-                query = query.filter(award_ceiling__lte=numeric_filters['max_award_ceiling'])
-            
-            # Apply date filters
-            date_filters = filters.get('date_filters', {})
-            if date_filters.get('close_date_after'):
-                close_after = parse_date(date_filters['close_date_after'])
-                if close_after:
-                    query = query.filter(close_date__gte=close_after)
-            if date_filters.get('close_date_before'):
-                close_before = parse_date(date_filters['close_date_before'])
-                if close_before:
-                    query = query.filter(close_date__lte=close_before)
-            
-            # Order by close date (upcoming first) and return up to 100 results
-            grants = list(query.order_by('close_date')[:100])
-            print(f"📊 Retrieved {len(grants)} grants from database")
-            
-            # Remove duplicates based on grant ID while preserving order
-            seen_grant_ids = set()
-            unique_grants = []
-            for grant in grants:
-                if grant.id not in seen_grant_ids:
-                    seen_grant_ids.add(grant.id)
-                    unique_grants.append(grant)
-            
-            print(f"✅ After deduplication: {len(unique_grants)} unique grants")
-            return unique_grants
-            
-        except Exception as e:
-            print(f"❌ Failed to apply filters: {str(e)}")
-            logger.error(f"Failed to apply filters: {str(e)}")
-            return []
-    
-    @staticmethod
-    def _rank_grants_with_ai(query, grants):
-        """
-        Stage 2: Rank grants using AI for relevance scoring.
+        Stage 2: Score grants using generated search parameters.
         
         Args:
             query: Original natural language query
-            grants: List of Grant objects to rank
+            search_params: Generated search parameters
+            grants: List of Grant objects to score
+            
+        Returns:
+            List of (grant, score) tuples sorted by relevance
+        """
+        if not grants:
+            return []
+        
+        try:
+            print(f"🔍 Scoring {len(grants)} grants using search parameters...")
+            scored_grants = []
+            
+            for grant in grants:
+                score = 0
+                score_details = {}  # For debugging
+                
+                # Term matching score
+                if search_params.get('term'):
+                    term_score = 0
+                    term_matches = []
+                    terms = search_params['term'].split()
+                    for term in terms:
+                        if len(term) >= 3:
+                            # Check title
+                            if term.lower() in grant.title.lower():
+                                term_score += 5
+                                term_matches.append(f"title:{term}")
+                            
+                            # Check description
+                            if grant.description and term.lower() in grant.description.lower():
+                                term_score += 4
+                                term_matches.append(f"desc:{term}")
+                            
+                            # Check category
+                            if grant.category_of_funding_activity and term.lower() in grant.category_of_funding_activity.lower():
+                                term_score += 3
+                                term_matches.append(f"category:{term}")
+                    
+                    # Normalize term score
+                    if terms:
+                        term_score = min(term_score, 25)  # Cap at 25 points
+                        score += term_score
+                        score_details['term_score'] = term_score
+                        score_details['term_matches'] = term_matches
+                
+                # Agency code scoring
+                if search_params.get('agency_code') and grant.agency_code:
+                    agency_codes = [code.strip() for code in search_params['agency_code'].split(',')]
+                    if grant.agency_code in agency_codes:
+                        agency_score = 20
+                        score += agency_score
+                        score_details['agency_score'] = agency_score
+                        score_details['agency_match'] = grant.agency_code
+                
+                # Agency name scoring
+                if search_params.get('agency_name') and grant.agency_name:
+                    agency_score = 0
+                    agency_matches = []
+                    agency_terms = search_params['agency_name'].split()
+                    for term in agency_terms:
+                        if len(term) >= 3 and term.lower() in grant.agency_name.lower():
+                            agency_score += 4
+                            agency_matches.append(term)
+                    
+                    if agency_score > 0:
+                        agency_score = min(agency_score, 15)  # Cap at 15 points
+                        score += agency_score
+                        score_details['agency_name_score'] = agency_score
+                        score_details['agency_name_matches'] = agency_matches
+                
+                # Category keywords scoring
+                if search_params.get('category_keywords') and grant.category_of_funding_activity:
+                    category_score = 0
+                    category_matches = []
+                    for keyword in search_params['category_keywords']:
+                        if keyword.lower() in grant.category_of_funding_activity.lower():
+                            category_score += 8
+                            category_matches.append(keyword)
+                    
+                    if category_score > 0:
+                        category_score = min(category_score, 15)  # Cap at 15 points
+                        score += category_score
+                        score_details['category_score'] = category_score
+                        score_details['category_matches'] = category_matches
+                
+                # Award amount scoring
+                if search_params.get('min_award_amount') or search_params.get('max_award_amount'):
+                    if grant.award_floor is not None or grant.award_ceiling is not None:
+                        award_amount_matches = True
+                        
+                        # Check minimum amount
+                        if search_params.get('min_award_amount'):
+                            min_amount = search_params['min_award_amount']
+                            if grant.award_floor and grant.award_floor < min_amount:
+                                award_amount_matches = False
+                        
+                        # Check maximum amount
+                        if search_params.get('max_award_amount'):
+                            max_amount = search_params['max_award_amount']
+                            if grant.award_ceiling and grant.award_ceiling > max_amount:
+                                award_amount_matches = False
+                        
+                        if award_amount_matches:
+                            award_score = 15
+                            score += award_score
+                            score_details['award_score'] = award_score
+                            score_details['award_range'] = f"{grant.award_floor}-{grant.award_ceiling}"
+                
+                # Deadline scoring
+                if search_params.get('deadline_start') and search_params.get('deadline_end') and grant.close_date:
+                    try:
+                        from datetime import datetime
+                        start_date = datetime.strptime(search_params['deadline_start'], '%Y-%m-%d').date()
+                        end_date = datetime.strptime(search_params['deadline_end'], '%Y-%m-%d').date()
+                        deadline_date = grant.close_date.date()
+                        
+                        if start_date <= deadline_date <= end_date:
+                            # Higher score for deadlines in the middle of the range
+                            range_days = (end_date - start_date).days
+                            if range_days > 0:
+                                position = (deadline_date - start_date).days / range_days
+                                # Score higher for deadlines in the middle of the range
+                                deadline_score = 10 * (1 - abs(position - 0.5) * 2)
+                                score += deadline_score
+                                score_details['deadline_score'] = deadline_score
+                                score_details['deadline_position'] = position
+                            else:
+                                deadline_score = 10
+                                score += deadline_score
+                                score_details['deadline_score'] = deadline_score
+                    except Exception as e:
+                        print(f"Error in deadline scoring: {str(e)}")
+                
+                # Eligible applicants scoring
+                if search_params.get('eligible_applicants') and grant.eligible_applicants:
+                    eligible_score = 0
+                    eligible_matches = []
+                    for applicant_type in search_params['eligible_applicants']:
+                        if applicant_type.lower() in grant.eligible_applicants.lower():
+                            eligible_score += 8
+                            eligible_matches.append(applicant_type)
+                    
+                    if eligible_score > 0:
+                        eligible_score = min(eligible_score, 12)  # Cap at 12 points
+                        score += eligible_score
+                        score_details['eligible_score'] = eligible_score
+                        score_details['eligible_matches'] = eligible_matches
+                
+                # Research keywords scoring
+                if search_params.get('research_keywords'):
+                    research_score = 0
+                    research_matches = []
+                    for keyword in search_params['research_keywords']:
+                        # Check title
+                        if keyword.lower() in grant.title.lower():
+                            research_score += 6
+                            research_matches.append(f"title:{keyword}")
+                        
+                        # Check description
+                        if grant.description and keyword.lower() in grant.description.lower():
+                            research_score += 5
+                            research_matches.append(f"desc:{keyword}")
+                        
+                        # Check category
+                        if grant.category_of_funding_activity and keyword.lower() in grant.category_of_funding_activity.lower():
+                            research_score += 4
+                            research_matches.append(f"category:{keyword}")
+                    
+                    if research_score > 0:
+                        research_score = min(research_score, 20)  # Cap at 20 points
+                        score += research_score
+                        score_details['research_score'] = research_score
+                        score_details['research_matches'] = research_matches
+                
+                # Recency bonus - newer grants get a small boost
+                if grant.close_date:
+                    from django.utils import timezone
+                    days_until_deadline = (grant.close_date - timezone.now().date()).days
+                    if days_until_deadline > 0 and days_until_deadline <= 90:  # Upcoming deadlines
+                        recency_score = 5 * (1 - days_until_deadline/90)  # Linear decay from 5 to 0 over 90 days
+                        score += recency_score
+                        score_details['recency_score'] = recency_score
+                        score_details['days_until_deadline'] = days_until_deadline
+                
+                # Only include grants with a minimum score
+                if score > 3:  # Adjust threshold as needed
+                    scored_grants.append((grant, score))
+            
+            print(f"📊 Scored {len(scored_grants)} grants with minimum relevance")
+            
+            # Sort by score (descending)
+            scored_grants.sort(key=lambda x: x[1], reverse=True)
+            
+            # Print top results for debugging
+            for i, (grant, score) in enumerate(scored_grants[:3]):
+                print(f"Top result #{i+1}: {grant.title} (Score: {score})")
+            
+            return scored_grants
+                
+        except Exception as e:
+            logger.error(f"Failed to score grants with parameters: {str(e)}")
+            # Return grants with default score
+            return [(grant, 0.5) for grant in grants]
+    
+    @staticmethod
+    def _score_grants_with_ai(query, grants):
+        """
+        Score grants using AI for relevance to the query.
+        
+        Args:
+            query: Original natural language query
+            grants: List of Grant objects to score
             
         Returns:
             List of (grant, score) tuples sorted by relevance
@@ -320,10 +478,10 @@ class NaturalLanguageSearchService:
             
             ORIGINAL USER QUERY: "{query}"
             
-            GRANTS TO RANK:
+            GRANTS TO SCORE:
             {json.dumps(grants_data, indent=2, cls=DecimalEncoder)}
             
-            Rank these grants based on how well they match the user's query. Consider:
+            Score each grant based on how well it matches the user's query. Consider:
             
             1. DIRECT RELEVANCE: How directly does the grant match the user's research interests?
             2. KEYWORD ALIGNMENT: How well do the grant title/description align with query keywords?
@@ -332,15 +490,23 @@ class NaturalLanguageSearchService:
             5. TIMELINE RELEVANCE: Is the deadline reasonable for the user's timeline?
             6. ELIGIBILITY MATCH: Does the user likely qualify for this grant?
             
-            Return ONLY a JSON object with grant IDs and relevance scores (0.0 to 1.0):
+            IMPORTANT: Score ALL grants, even if they seem unrelated. Use a scoring range of 0.0 to 1.0:
+            - 0.9-1.0: Perfect or near-perfect match
+            - 0.7-0.8: Strong relevance and good match
+            - 0.5-0.6: Moderate relevance, some connection
+            - 0.3-0.4: Weak relevance, minimal connection
+            - 0.0-0.2: No relevance or completely unrelated
+            
+            Return ONLY a JSON object with grant IDs and relevance scores:
             {{
                 "rankings": [
                     {{"grant_id": 1, "relevance_score": 0.95, "reason": "Perfect match for AI research with appropriate funding"}},
-                    {{"grant_id": 2, "relevance_score": 0.87, "reason": "Strong alignment with machine learning focus"}}
+                    {{"grant_id": 2, "relevance_score": 0.87, "reason": "Strong alignment with machine learning focus"}},
+                    {{"grant_id": 3, "relevance_score": 0.15, "reason": "No clear connection to query"}}
                 ]
             }}
             
-            Rank all grants provided. Use scores between 0.0 and 1.0.
+            Score ALL grants provided. Use scores between 0.0 and 1.0.
             """
             
             response = model.generate_content(prompt)
@@ -378,10 +544,10 @@ class NaturalLanguageSearchService:
     @staticmethod
     def search_profiles_with_nlp(query, limit=20):
         """
-        Search researcher profiles using two-stage natural language processing.
+        Search researcher profiles using two-stage scoring algorithm.
         
-        Stage 1: Generate database filters from natural language query
-        Stage 2: AI ranking of top 25 results for relevance scoring
+        Stage 1: Generate search parameters from natural language query
+        Stage 2: Score all profiles using the generated parameters
         
         Args:
             query: Natural language search query
@@ -399,34 +565,27 @@ class NaturalLanguageSearchService:
             return NaturalLanguageSearchService._fallback_search_profiles(query, limit)
         
         try:
-            # Stage 1: Generate database filters
-            print(f"🔍 Starting natural language search for profiles with query: '{query}'")
-            print("📝 Stage 1: Generating database filters using AI...")
-            filters = NaturalLanguageSearchService._generate_profile_filters(query)
-            logger.info(f"Generated filters for query '{query}': {filters}")
-            print(f"✅ Generated filters: {filters}")
+            print(f"🔍 Starting two-stage profile search with query: '{query}'")
             
-            # Apply filters to get candidate profiles
-            print("🔎 Stage 1: Applying filters to database...")
-            candidate_profiles = NaturalLanguageSearchService._apply_profile_filters(filters)
-            logger.info(f"Found {len(candidate_profiles)} candidate profiles")
-            print(f"✅ Found {len(candidate_profiles)} candidate profiles")
+            # Stage 1: Generate search parameters from natural language query
+            print("📝 Stage 1: Generating search parameters using AI...")
+            search_params = NaturalLanguageSearchService._generate_profile_search_params(query)
+            logger.info(f"Generated search parameters for query '{query}': {search_params}")
+            print(f"✅ Generated search parameters: {search_params}")
             
-            if not candidate_profiles:
+            # Stage 2: Get all profiles and score them using the parameters
+            print("📊 Stage 2: Retrieving profiles from database...")
+            all_profiles = list(ResearcherProfile.objects.all()[:100])
+            logger.info(f"Retrieved {len(all_profiles)} profiles from database")
+            print(f"✅ Retrieved {len(all_profiles)} profiles from database")
+            
+            if not all_profiles:
                 return []
             
-            # Stage 2: AI ranking of top 25 results
-            print("🤖 Stage 2: AI ranking and relevance scoring...")
-            if len(candidate_profiles) > 25:
-                # Take top 25 for AI ranking
-                top_candidates = candidate_profiles[:25]
-                print(f"📊 Taking top 25 candidates for AI ranking (from {len(candidate_profiles)} total)")
-            else:
-                top_candidates = candidate_profiles
-                print(f"📊 Using all {len(candidate_profiles)} candidates for AI ranking")
-            
-            scored_profiles = NaturalLanguageSearchService._rank_profiles_with_ai(query, top_candidates)
-            print(f"✅ AI ranking completed. Returning top {limit} results")
+            # Score all profiles using the generated parameters
+            print("🤖 Stage 2: Scoring all profiles using generated parameters...")
+            scored_profiles = NaturalLanguageSearchService._score_profiles_with_params(query, search_params, all_profiles)
+            print(f"✅ Scoring completed. Returning top {min(limit, len(scored_profiles))} results")
             
             # Return top results up to limit
             return scored_profiles[:limit]
@@ -435,192 +594,327 @@ class NaturalLanguageSearchService:
             logger.error(f"Natural language search failed: {str(e)}")
             return NaturalLanguageSearchService._fallback_search_profiles(query, limit)
     
+    
     @staticmethod
-    def _generate_profile_filters(query):
+    def _generate_profile_search_params(query):
         """
-        Stage 1: Generate database filters from natural language query using AI.
+        Stage 1: Generate search parameters from natural language query using AI.
         
         Args:
             query: Natural language search query
             
         Returns:
-            Dictionary of database filters
+            Dictionary of search parameters
         """
         try:
+            print(f"🤖 Generating profile search parameters for query: '{query}'")
             # Configure Gemini
             genai.configure(api_key=settings.GEMINI_API_KEY)
             model = genai.GenerativeModel('gemini-2.5-flash')
+            print("✅ Gemini model configured successfully")
             
             prompt = f"""
-            You are an expert database query generator for researcher profile databases.
-            
-            USER SEARCH QUERY: "{query}"
-            
-            Based on this natural language query, generate appropriate database filters to find relevant researchers.
-            
-            Available profile fields for filtering:
-            - name: Researcher name (text search)
-            - position: Job title/position (text search)
-            - department: Department (text search)
-            - school: University/institution (text search)
-            - expertise: Research areas/expertise (text search)
-            - education: Educational background (text search)
-            - bio: Biography/research description (text search)
-            
-            Generate filters that will help find the most relevant researchers. Consider:
-            1. Research areas and expertise mentioned
-            2. Academic disciplines and fields
-            3. Institution types or specific universities
-            4. Job titles or career levels
-            5. Educational background requirements
-            6. Research methodologies or approaches
-            
-            Return ONLY a JSON object with the filters:
+            You are an expert academic networking consultant. Your task is to convert natural language queries into search parameters that will help users find relevant researcher profiles. Always aim for broader, more inclusive search parameters to maximize relevant results.
+
+            Convert this natural language query into search parameters:
+            "{query}"
+
+            Return a JSON object with these possible fields (include a field only if it's relevant to the query):
+            - term (string): for general keyword search
+              * Include synonyms and related terms
+              * Consider academic and research terminology
+              * Include both specific and general terms
+              * Example: "AI researchers" could expand to "artificial intelligence machine learning deep learning neural networks computer vision natural language processing"
+
+            - name_keywords (array): researcher name keywords
+              * Include variations and common names
+              * Only include if specifically mentioned
+
+            - position_keywords (array): job title/position keywords
+              * Include academic positions and research roles
+              * Examples: ["professor", "researcher", "scientist", "postdoc", "graduate student"]
+              * Consider both specific and general positions
+
+            - department_keywords (array): department keywords
+              * Include academic departments and research units
+              * Examples: ["Computer Science", "Biology", "Physics", "Engineering", "Medicine"]
+              * Consider both specific and broader departments
+
+            - school_keywords (array): institution keywords
+              * Include university names and types
+              * Examples: ["Stanford", "MIT", "Harvard", "research university", "community college"]
+              * Consider both specific and general institution types
+
+            - expertise_keywords (array): research expertise keywords
+              * Include technical terms, methodologies, and research areas
+              * These will be used to search researcher expertise and bio
+              * Example: ["machine learning", "climate change", "cancer research", "renewable energy"]
+              * Only include if the query suggests specific research areas
+
+            - education_keywords (array): educational background keywords
+              * Include degrees, institutions, and educational terms
+              * Examples: ["PhD", "PhD in Computer Science", "Stanford", "postdoc"]
+              * Only include if specifically mentioned
+
+            - bio_keywords (array): biography/research description keywords
+              * Include research methodologies, approaches, and interests
+              * These will be used to search researcher biographies
+              * Example: ["collaborative research", "interdisciplinary", "clinical trials", "field work"]
+              * Only include if the query suggests specific research approaches
+
+            Example inputs and outputs:
+
+            Input: "Find AI researchers at Stanford"
+            Output:
             {{
-                "text_filters": {{
-                    "name_keywords": ["keyword1", "keyword2"],
-                    "position_keywords": ["keyword1", "keyword2"],
-                    "department_keywords": ["keyword1", "keyword2"],
-                    "school_keywords": ["keyword1", "keyword2"],
-                    "expertise_keywords": ["keyword1", "keyword2"],
-                    "education_keywords": ["keyword1", "keyword2"],
-                    "bio_keywords": ["keyword1", "keyword2"]
-                }},
-                "exact_filters": {{
-                    "department": "Computer Science",
-                    "school": "Stanford University"
-                }}
+                "term": "artificial intelligence machine learning deep learning neural networks computer vision natural language processing AI research",
+                "school_keywords": ["Stanford", "Stanford University"],
+                "expertise_keywords": ["artificial intelligence", "machine learning", "deep learning", "neural networks", "computer vision", "NLP"],
+                "position_keywords": ["professor", "researcher", "scientist", "postdoc"]
             }}
-            
-            Only include filters that are relevant to the query. Use null for unused filters.
+
+            Input: "Show me biology professors with PhD in genetics"
+            Output:
+            {{
+                "term": "biology genetics molecular biology genomics bioinformatics",
+                "department_keywords": ["Biology", "Genetics", "Molecular Biology", "Biochemistry"],
+                "position_keywords": ["professor", "associate professor", "assistant professor"],
+                "education_keywords": ["PhD", "PhD in Genetics", "PhD in Biology"],
+                "expertise_keywords": ["genetics", "molecular biology", "genomics", "bioinformatics", "gene expression"]
+            }}
+
+            Input: "Find climate change researchers for collaboration"
+            Output:
+            {{
+                "term": "climate change global warming environmental science sustainability renewable energy",
+                "expertise_keywords": ["climate change", "global warming", "environmental science", "sustainability", "renewable energy", "carbon emissions"],
+                "position_keywords": ["professor", "researcher", "scientist", "postdoc", "graduate student"],
+                "bio_keywords": ["collaborative research", "interdisciplinary", "field work", "climate modeling"]
+            }}
+
+            Guidelines:
+            1. Always err on the side of being more inclusive with search terms
+            2. Include related terms to capture all relevant researchers
+            3. Only include fields that are directly relevant to the query
+            4. All fields are optional - only include what makes sense
+            5. When in doubt, be broader rather than narrower
+
+            Return ONLY the JSON object, no additional text.
             """
             
+            print("📤 Sending prompt to Gemini for parameter generation...")
             response = model.generate_content(prompt)
             response_text = response.text.strip()
+            print(f"📥 Received response from Gemini: {response_text[:200]}...")
             
             # Parse the JSON response
             start_idx = response_text.find('{')
             end_idx = response_text.rfind('}') + 1
             if start_idx != -1 and end_idx != -1:
                 json_text = response_text[start_idx:end_idx]
-                return json.loads(json_text)
+                params = json.loads(json_text)
+                print(f"✅ Successfully parsed search parameters: {params}")
+                return params
             
+            print("⚠️ Could not parse JSON from Gemini response")
             return {}
             
         except Exception as e:
-            logger.error(f"Failed to generate profile filters: {str(e)}")
+            print(f"❌ Failed to generate search parameters: {str(e)}")
+            logger.error(f"Failed to generate search parameters: {str(e)}")
             return {}
     
     @staticmethod
-    def _apply_profile_filters(filters):
+    def _score_profiles_with_params(query, search_params, profiles):
         """
-        Apply generated filters to the ResearcherProfile database.
-        
-        Args:
-            filters: Dictionary of database filters
-            
-        Returns:
-            List of ResearcherProfile objects matching the filters
-        """
-        try:
-            # Handle case where filters is None or empty
-            if not filters:
-                logger.warning("No filters provided, returning empty results")
-                return []
-                
-            query = ResearcherProfile.objects.all()
-            
-            # Apply text filters
-            text_filters = filters.get('text_filters', {})
-            
-            # Name keywords
-            name_keywords = text_filters.get('name_keywords', [])
-            if name_keywords:
-                name_q = Q()
-                for keyword in name_keywords:
-                    name_q |= Q(name__icontains=keyword)
-                query = query.filter(name_q)
-            
-            # Position keywords
-            position_keywords = text_filters.get('position_keywords', [])
-            if position_keywords:
-                pos_q = Q()
-                for keyword in position_keywords:
-                    pos_q |= Q(position__icontains=keyword)
-                query = query.filter(pos_q)
-            
-            # Department keywords
-            dept_keywords = text_filters.get('department_keywords', [])
-            if dept_keywords:
-                dept_q = Q()
-                for keyword in dept_keywords:
-                    dept_q |= Q(department__icontains=keyword)
-                query = query.filter(dept_q)
-            
-            # School keywords
-            school_keywords = text_filters.get('school_keywords', [])
-            if school_keywords:
-                school_q = Q()
-                for keyword in school_keywords:
-                    school_q |= Q(school__icontains=keyword)
-                query = query.filter(school_q)
-            
-            # Expertise keywords
-            expertise_keywords = text_filters.get('expertise_keywords', [])
-            if expertise_keywords:
-                exp_q = Q()
-                for keyword in expertise_keywords:
-                    exp_q |= Q(expertise__icontains=keyword)
-                query = query.filter(exp_q)
-            
-            # Education keywords
-            education_keywords = text_filters.get('education_keywords', [])
-            if education_keywords:
-                edu_q = Q()
-                for keyword in education_keywords:
-                    edu_q |= Q(education__icontains=keyword)
-                query = query.filter(edu_q)
-            
-            # Bio keywords
-            bio_keywords = text_filters.get('bio_keywords', [])
-            if bio_keywords:
-                bio_q = Q()
-                for keyword in bio_keywords:
-                    bio_q |= Q(bio__icontains=keyword)
-                query = query.filter(bio_q)
-            
-            # Apply exact filters
-            exact_filters = filters.get('exact_filters', {})
-            if exact_filters.get('department'):
-                query = query.filter(department__icontains=exact_filters['department'])
-            if exact_filters.get('school'):
-                query = query.filter(school__icontains=exact_filters['school'])
-            
-            # Return up to 100 results
-            profiles = list(query[:100])
-            
-            # Remove duplicates based on profile email while preserving order
-            seen_profile_emails = set()
-            unique_profiles = []
-            for profile in profiles:
-                if profile.email not in seen_profile_emails:
-                    seen_profile_emails.add(profile.email)
-                    unique_profiles.append(profile)
-            
-            return unique_profiles
-            
-        except Exception as e:
-            logger.error(f"Failed to apply profile filters: {str(e)}")
-            return []
-    
-    @staticmethod
-    def _rank_profiles_with_ai(query, profiles):
-        """
-        Stage 2: Rank profiles using AI for relevance scoring.
+        Stage 2: Score profiles using generated search parameters.
         
         Args:
             query: Original natural language query
-            profiles: List of ResearcherProfile objects to rank
+            search_params: Generated search parameters
+            profiles: List of ResearcherProfile objects to score
+            
+        Returns:
+            List of (profile, score) tuples sorted by relevance
+        """
+        if not profiles:
+            return []
+        
+        try:
+            print(f"🔍 Scoring {len(profiles)} profiles using search parameters...")
+            scored_profiles = []
+            
+            for profile in profiles:
+                score = 0
+                score_details = {}  # For debugging
+                
+                # Term matching score
+                if search_params.get('term'):
+                    term_score = 0
+                    term_matches = []
+                    terms = search_params['term'].split()
+                    for term in terms:
+                        if len(term) >= 3:
+                            # Check name
+                            if term.lower() in profile.name.lower():
+                                term_score += 5
+                                term_matches.append(f"name:{term}")
+                            
+                            # Check bio
+                            if profile.bio and term.lower() in profile.bio.lower():
+                                term_score += 4
+                                term_matches.append(f"bio:{term}")
+                            
+                            # Check position
+                            if profile.position and term.lower() in profile.position.lower():
+                                term_score += 3
+                                term_matches.append(f"position:{term}")
+                            
+                            # Check department
+                            if profile.department and term.lower() in profile.department.lower():
+                                term_score += 3
+                                term_matches.append(f"department:{term}")
+                    
+                    # Normalize term score
+                    if terms:
+                        term_score = min(term_score, 25)  # Cap at 25 points
+                        score += term_score
+                        score_details['term_score'] = term_score
+                        score_details['term_matches'] = term_matches
+                
+                # Name keywords scoring
+                if search_params.get('name_keywords'):
+                    name_score = 0
+                    name_matches = []
+                    for keyword in search_params['name_keywords']:
+                        if keyword.lower() in profile.name.lower():
+                            name_score += 10
+                            name_matches.append(keyword)
+                    
+                    if name_score > 0:
+                        name_score = min(name_score, 15)  # Cap at 15 points
+                        score += name_score
+                        score_details['name_score'] = name_score
+                        score_details['name_matches'] = name_matches
+                
+                # Position keywords scoring
+                if search_params.get('position_keywords') and profile.position:
+                    position_score = 0
+                    position_matches = []
+                    for keyword in search_params['position_keywords']:
+                        if keyword.lower() in profile.position.lower():
+                            position_score += 8
+                            position_matches.append(keyword)
+                    
+                    if position_score > 0:
+                        position_score = min(position_score, 15)  # Cap at 15 points
+                        score += position_score
+                        score_details['position_score'] = position_score
+                        score_details['position_matches'] = position_matches
+                
+                # Department keywords scoring
+                if search_params.get('department_keywords') and profile.department:
+                    department_score = 0
+                    department_matches = []
+                    for keyword in search_params['department_keywords']:
+                        if keyword.lower() in profile.department.lower():
+                            department_score += 8
+                            department_matches.append(keyword)
+                    
+                    if department_score > 0:
+                        department_score = min(department_score, 15)  # Cap at 15 points
+                        score += department_score
+                        score_details['department_score'] = department_score
+                        score_details['department_matches'] = department_matches
+                
+                # School keywords scoring
+                if search_params.get('school_keywords') and profile.school:
+                    school_score = 0
+                    school_matches = []
+                    for keyword in search_params['school_keywords']:
+                        if keyword.lower() in profile.school.lower():
+                            school_score += 8
+                            school_matches.append(keyword)
+                    
+                    if school_score > 0:
+                        school_score = min(school_score, 15)  # Cap at 15 points
+                        score += school_score
+                        score_details['school_score'] = school_score
+                        score_details['school_matches'] = school_matches
+                
+                # Expertise keywords scoring
+                if search_params.get('expertise_keywords') and profile.expertise:
+                    expertise_score = 0
+                    expertise_matches = []
+                    for keyword in search_params['expertise_keywords']:
+                        if keyword.lower() in str(profile.expertise).lower():
+                            expertise_score += 10
+                            expertise_matches.append(keyword)
+                    
+                    if expertise_score > 0:
+                        expertise_score = min(expertise_score, 20)  # Cap at 20 points
+                        score += expertise_score
+                        score_details['expertise_score'] = expertise_score
+                        score_details['expertise_matches'] = expertise_matches
+                
+                # Education keywords scoring
+                if search_params.get('education_keywords') and profile.education:
+                    education_score = 0
+                    education_matches = []
+                    for keyword in search_params['education_keywords']:
+                        if keyword.lower() in profile.education.lower():
+                            education_score += 8
+                            education_matches.append(keyword)
+                    
+                    if education_score > 0:
+                        education_score = min(education_score, 12)  # Cap at 12 points
+                        score += education_score
+                        score_details['education_score'] = education_score
+                        score_details['education_matches'] = education_matches
+                
+                # Bio keywords scoring
+                if search_params.get('bio_keywords') and profile.bio:
+                    bio_score = 0
+                    bio_matches = []
+                    for keyword in search_params['bio_keywords']:
+                        if keyword.lower() in profile.bio.lower():
+                            bio_score += 6
+                            bio_matches.append(keyword)
+                    
+                    if bio_score > 0:
+                        bio_score = min(bio_score, 15)  # Cap at 15 points
+                        score += bio_score
+                        score_details['bio_score'] = bio_score
+                        score_details['bio_matches'] = bio_matches
+                
+                # Only include profiles with a minimum score
+                if score > 3:  # Adjust threshold as needed
+                    scored_profiles.append((profile, score))
+            
+            print(f"📊 Scored {len(scored_profiles)} profiles with minimum relevance")
+            
+            # Sort by score (descending)
+            scored_profiles.sort(key=lambda x: x[1], reverse=True)
+            
+            # Print top results for debugging
+            for i, (profile, score) in enumerate(scored_profiles[:3]):
+                print(f"Top result #{i+1}: {profile.name} (Score: {score})")
+            
+            return scored_profiles
+                
+        except Exception as e:
+            logger.error(f"Failed to score profiles with parameters: {str(e)}")
+            # Return profiles with default score
+            return [(profile, 0.5) for profile in profiles]
+    
+    @staticmethod
+    def _score_profiles_with_ai(query, profiles):
+        """
+        Score profiles using AI for relevance to the query.
+        
+        Args:
+            query: Original natural language query
+            profiles: List of ResearcherProfile objects to score
             
         Returns:
             List of (profile, score) tuples sorted by relevance
@@ -653,10 +947,10 @@ class NaturalLanguageSearchService:
             
             ORIGINAL USER QUERY: "{query}"
             
-            RESEARCHER PROFILES TO RANK:
+            RESEARCHER PROFILES TO SCORE:
             {json.dumps(profiles_data, indent=2, cls=DecimalEncoder)}
             
-            Rank these researchers based on how well they match the user's query. Consider:
+            Score each researcher based on how well they match the user's query. Consider:
             
             1. EXPERTISE ALIGNMENT: How well does the researcher's expertise match the query?
             2. RESEARCH DOMAIN FIT: Does the researcher work in the relevant research domain?
@@ -665,15 +959,23 @@ class NaturalLanguageSearchService:
             5. INSTITUTIONAL FIT: Is the researcher at an appropriate institution level?
             6. RESEARCH METHODOLOGY: Does the researcher use relevant methodologies or approaches?
             
-            Return ONLY a JSON object with profile emails and relevance scores (0.0 to 1.0):
+            IMPORTANT: Score ALL profiles, even if they seem unrelated. Use a scoring range of 0.0 to 1.0:
+            - 0.9-1.0: Perfect or near-perfect match
+            - 0.7-0.8: Strong relevance and good match
+            - 0.5-0.6: Moderate relevance, some connection
+            - 0.3-0.4: Weak relevance, minimal connection
+            - 0.0-0.2: No relevance or completely unrelated
+            
+            Return ONLY a JSON object with profile emails and relevance scores:
             {{
                 "rankings": [
                     {{"profile_email": "researcher@university.edu", "relevance_score": 0.95, "reason": "Perfect match for AI research with strong credentials"}},
-                    {{"profile_email": "scientist@college.edu", "relevance_score": 0.87, "reason": "Strong expertise in machine learning"}}
+                    {{"profile_email": "scientist@college.edu", "relevance_score": 0.87, "reason": "Strong expertise in machine learning"}},
+                    {{"profile_email": "unrelated@college.edu", "relevance_score": 0.12, "reason": "No clear connection to query"}}
                 ]
             }}
             
-            Rank all profiles provided. Use scores between 0.0 and 1.0.
+            Score ALL profiles provided. Use scores between 0.0 and 1.0.
             """
             
             response = model.generate_content(prompt)
