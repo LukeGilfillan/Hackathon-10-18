@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
   Card,
   CardContent,
   Chip,
@@ -21,10 +20,6 @@ import {
 import { styled } from '@mui/material/styles';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faFolder,
-  faCalendarAlt,
-  faExclamationTriangle,
-  faCheckCircle,
   faArrowRight
 } from '@fortawesome/free-solid-svg-icons';
 import FolderIcon from '@mui/icons-material/Folder';
@@ -79,16 +74,37 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
 
   const fetchSavedGrants = async () => {
     try {
-      const response = await fetch('/api/saved-grants/', {
+      const sessionToken = localStorage.getItem('session_token');
+      if (!sessionToken) {
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch('http://localhost:8000/api/grant-pipeline/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Token ${sessionToken}`,
           'Content-Type': 'application/json'
         }
       });
       
       if (response.ok) {
         const data = await response.json();
-        setSavedGrants(data.saved_grants || []);
+        // Transform pipeline entries to saved grants format
+        const grants = data.pipeline_entries?.map(entry => ({
+          id: entry.grant.id, // Grant ID for display
+          pipeline_entry_id: entry.id, // Pipeline entry ID for API calls
+          title: entry.grant.title,
+          agency: entry.grant.agency_code,
+          status: entry.decision_status || 'saved',
+          notes: entry.notes || '',
+          priority: entry.priority || 'medium',
+          application_deadline: entry.application_deadline,
+          application_submitted_date: entry.application_submitted_date,
+          decision_date: entry.decision_date,
+          is_public: false, // Default values for compatibility
+          allow_collaboration: false
+        })) || [];
+        setSavedGrants(grants);
       } else {
         throw new Error('Failed to fetch saved grants');
       }
@@ -146,7 +162,8 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
   }, {});
 
   const upcomingDeadlines = savedGrants.filter(grant => {
-    const daysLeft = getDaysUntilDeadline(grant.grant.close_date);
+    if (!grant.application_deadline) return false;
+    const daysLeft = getDaysUntilDeadline(grant.application_deadline);
     return daysLeft > 0 && daysLeft <= 30;
   }).length;
 
@@ -209,7 +226,7 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
           </Typography>
           <List>
             {recentGrants.map((grant, index) => {
-              const daysLeft = getDaysUntilDeadline(grant.grant.close_date);
+              const daysLeft = grant.application_deadline ? getDaysUntilDeadline(grant.application_deadline) : 0;
               const deadlineColor = getDeadlineColor(daysLeft);
               
               return (
@@ -217,11 +234,11 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
                   <ListItem sx={{ px: 0, py: 1 }}>
                     <ListItemIcon>
                       <Avatar sx={{ 
-                        bgcolor: statusColors[grant.status], 
+                        bgcolor: statusColors[grant.status] || theme.palette.grey[500], 
                         width: 28, 
                         height: 28 
                       }}>
-                        {statusIcons[grant.status]}
+                        {statusIcons[grant.status] || <FolderIcon sx={{ color: 'white', fontSize: 16 }} />}
                       </Avatar>
                     </ListItemIcon>
                     <ListItemText
@@ -232,16 +249,16 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                         }}>
-                          {grant.grant.title}
+                          {grant.title}
                         </Typography>
                       }
                       secondary={
                         <Box display="flex" alignItems="center" gap={1}>
                           <Chip
-                            label={grant.status_display}
+                            label={grant.status}
                             size="small"
                             sx={{
-                              bgcolor: statusColors[grant.status],
+                              bgcolor: statusColors[grant.status] || theme.palette.grey[500],
                               color: 'white',
                               fontSize: '0.7rem',
                               height: 18
