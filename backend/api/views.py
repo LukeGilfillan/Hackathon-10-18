@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.db.models import Q
 from django.utils.dateparse import parse_date
 from django.utils import timezone
@@ -15,8 +15,11 @@ from .professor_llm_service import ProfessorLLMService
 from .natural_language_search_service import NaturalLanguageSearchService, DecimalEncoder
 import logging
 import json
+import os
 from datetime import datetime
 from decimal import Decimal
+import google.generativeai as genai
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -1686,4 +1689,254 @@ def pipeline_stages(request):
             'error': 'Failed to get pipeline stages',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def cardinal_concordia_chatbot(request):
+    """Cardinal Concordia AI chatbot endpoint with streaming responses"""
+    try:
+        logger.info(f"Chatbot request received: {request.data}")
+        
+        question = request.data.get('question')
+        if not question:
+            logger.warning("No question provided in chatbot request")
+            return Response({'error': 'Question is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        conversation_history = request.data.get('conversation_history', [])
+        logger.info(f"Question: {question}, History length: {len(conversation_history)}")
+        
+        # Get some sample grants and profiles for context
+        try:
+            recent_grants = list(Grant.objects.all()[:5])
+            recent_profiles = list(ResearcherProfile.objects.all()[:5])
+            logger.info(f"Found {len(recent_grants)} grants and {len(recent_profiles)} profiles")
+        except Exception as e:
+            logger.error(f"Error fetching grants/profiles: {str(e)}")
+            recent_grants = []
+            recent_profiles = []
+        
+        # Build context from grants and profiles with null checks
+        grants_context = "\n".join([
+            f"Grant: {grant.title or 'Untitled'} - {(grant.description or 'No description')[:200]}..." 
+            for grant in recent_grants
+        ]) if recent_grants else "No grants available"
+        
+        profiles_context = "\n".join([
+            f"Researcher: {profile.name or 'Unknown'} - {(profile.bio or 'No bio available')[:200]}..." 
+            for profile in recent_profiles
+        ]) if recent_profiles else "No researchers available"
+        
+        # Build conversation history context
+        conversation_context = ""
+        if conversation_history and isinstance(conversation_history, list):
+            try:
+                conversation_context = "\n".join([
+                    f"{'User' if msg.get('type') == 'user' else 'Assistant'}: {msg.get('content', '')}"
+                    for msg in conversation_history[-3:]  # Last 3 messages for context
+                    if isinstance(msg, dict)  # Ensure msg is a dictionary
+                ])
+            except Exception as e:
+                logger.warning(f"Error processing conversation history: {str(e)}")
+                conversation_context = ""
+        
+        # System prompt for Cardinal Concordia
+        system_prompt = """
+        You are Cardinal Concordia, an AI research assistant specializing in helping researchers find grants, connect with collaborators, and navigate the research funding landscape. 
+        
+        Your responses must be focused on research grants, funding opportunities, researcher collaboration, and academic research topics. 
+        If a user asks about anything unrelated to research, grants, or academic collaboration, politely redirect the conversation back to these topics.
+        
+        IMPORTANT: Use proper markdown formatting to enhance readability:
+        - Use **bold** for emphasis on key points
+        - Use *italic* for important terms or definitions
+        - Use ### for section headers
+        - Use bullet points (- or *) for lists
+        - Use numbered lists (1. 2. 3.) for steps or sequences
+        - Use `code` for technical terms, grant numbers, or specific values
+        - Use > for important callouts or tips
+        - Structure your responses with clear sections and proper formatting
+        
+        Always be helpful, encouraging, and provide actionable advice for researchers.
+        """
+        
+        # Build messages for AI
+        messages = [
+            {"role": "user", "content": f"""
+            Context about Cardinal Concordia Platform:
+            
+            **Available Grants:**
+            {grants_context[:1000]}
+            
+            **Available Researchers:**
+            {profiles_context[:1000]}
+            
+            **Previous Conversation:**
+            {conversation_context}
+            
+            **Current Question:** {question}
+            
+            Please provide a helpful response about research grants, finding collaborators, or platform features. Use markdown formatting for better readability.
+            """}
+        ]
+        
+        def generate():
+            try:
+                logger.info("Starting chatbot response generation")
+                
+                # Check if Gemini API key is available
+                if not hasattr(settings, 'GEMINI_API_KEY') or not settings.GEMINI_API_KEY:
+                    logger.warning("No Gemini API key available, using fallback response")
+                    # Fallback to simple response if no API key
+                    fallback_response = get_fallback_response(question)
+                    yield f"data: {json.dumps({'content': fallback_response})}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'query_id': 'fallback'})}\n\n"
+                    return
+                
+                logger.info("Configuring Gemini API")
+                # Configure Gemini
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                
+                # Create the model
+                model = genai.GenerativeModel('gemini-2.0-flash')
+                
+                # Build the full prompt with system prompt and user message
+                full_prompt = f"{system_prompt}\n\nUser: {messages[0]['content']}"
+                logger.info(f"Generated prompt length: {len(full_prompt)}")
+                
+                # Generate content with streaming
+                logger.info("Starting Gemini content generation")
+                response = model.generate_content(
+                    full_prompt,
+                    stream=True
+                )
+                
+                full_response = ""
+                chunk_count = 0
+                for chunk in response:
+                    if chunk.text:
+                        content = chunk.text
+                        full_response += content
+                        chunk_count += 1
+                        yield f"data: {json.dumps({'content': content})}\n\n"
+                
+                logger.info(f"Completed streaming response with {chunk_count} chunks")
+                # Send final message
+                yield f"data: {json.dumps({'done': True, 'query_id': f'chat_{int(timezone.now().timestamp())}'})}\n\n"
+                
+            except Exception as e:
+                logger.error(f"Error in streaming response: {str(e)}", exc_info=True)
+                # Fallback to simple response on error
+                fallback_response = get_fallback_response(question)
+                yield f"data: {json.dumps({'content': fallback_response})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'query_id': 'error_fallback'})}\n\n"
+
+        return StreamingHttpResponse(
+            generate(),
+            content_type='text/event-stream'
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in cardinal_concordia_chatbot: {str(e)}", exc_info=True)
+        return Response({
+            'error': 'Failed to process chatbot request',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def get_fallback_response(question):
+    """Fallback response when AI service is not available"""
+    question_lower = question.lower()
+    
+    if any(word in question_lower for word in ['grant', 'funding', 'research']):
+        return """I can help you find research grants! Based on your question about grants, here are some ways I can assist:
+
+**Available Grant Search Features:**
+- Use the "Search Grants" tab to find funding opportunities
+- Try natural language searches like "NSF grants for AI research"
+- Browse by agency, amount, or deadline
+- Save interesting grants to your personal collection
+
+**Current Available Grants:**
+The platform contains thousands of grant opportunities from various agencies including NSF, NIH, DOE, and more.
+
+Would you like me to help you search for specific types of grants or funding opportunities?"""
+    
+    elif any(word in question_lower for word in ['researcher', 'professor', 'collaboration', 'expert']):
+        return """I can help you connect with researchers! Here's how to find collaborators:
+
+**Researcher Discovery Features:**
+- Use the "Find Researchers" tab to search for experts
+- Search by research area, university, or expertise
+- View detailed profiles with research interests
+- Connect with potential collaborators
+
+**Available Researchers:**
+The platform includes profiles of researchers from universities across the country with diverse expertise areas.
+
+What specific research area or expertise are you looking for in a collaborator?"""
+    
+    elif any(word in question_lower for word in ['help', 'how', 'what', 'platform']):
+        return """Welcome to Cardinal Concordia! I'm your AI research assistant. Here's what I can help you with:
+
+**🔍 Grant Discovery**
+- Find funding opportunities from various agencies
+- Search using natural language queries
+- Filter by amount, deadline, and research area
+
+**👥 Researcher Network**
+- Discover researchers and potential collaborators
+- Search by expertise and institution
+- Connect with like-minded academics
+
+**📁 Personal Organization**
+- Save grants to your personal collection
+- Track your grant pipeline and applications
+- Manage collaboration invitations
+
+**💬 Community Forum**
+- Join discussions with other researchers
+- Share insights and ask questions
+- Stay updated on research trends
+
+**🎯 AI-Powered Matching**
+- Get personalized grant recommendations
+- Find researchers with complementary expertise
+- Receive insights based on your profile
+
+How can I assist you today?"""
+    
+    elif any(word in question_lower for word in ['saved', 'collection', 'bookmark']):
+        return """I can help you manage your saved grants! Here's what you can do:
+
+**Saved Grants Features:**
+- View all grants you've saved in the "My Saved Grants" tab
+- Organize grants by priority or deadline
+- Add notes and reminders to each grant
+- Track your application progress
+
+**Grant Pipeline Management:**
+- Move grants through different stages (Interested, Applied, Awarded, etc.)
+- Set custom pipeline stages that match your workflow
+- Get reminders about upcoming deadlines
+
+To access your saved grants, click on the "My Saved Grants" tab in the main navigation. You can also save grants directly from the search results by clicking the save button.
+
+Would you like help with organizing your saved grants or setting up your grant pipeline?"""
+    
+    else:
+        return f"""I understand you're asking about: "{question}"
+
+As Cardinal Concordia, I'm here to help you with research grants, finding collaborators, and navigating our platform. I can assist with:
+
+- **Grant Discovery**: Finding funding opportunities
+- **Researcher Matching**: Connecting with potential collaborators  
+- **Platform Navigation**: Understanding features and tools
+- **Research Strategy**: Tips for successful grant applications
+
+Could you rephrase your question to focus on grants, researchers, or platform features? I'm designed to help with research-related topics and platform functionality.
+
+For example, you could ask:
+- "How do I find NSF grants for AI research?"
+- "Who are researchers working on climate change?"
+- "How do I save grants to my collection?"""
 

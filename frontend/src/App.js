@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { 
   TextField, 
@@ -20,6 +20,7 @@ import SavedGrants from './SavedGrants';
 import ProfessorOverview from './ProfessorOverview';
 import SearchResultsWrapper from './SearchResultsWrapper';
 import Forum from './Forum';
+import CardinalConcordiaChatbot from './CardinalConcordiaChatbot';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -484,7 +485,7 @@ function App() {
     setCurrentUser(null);
   };
 
-  const searchGrants = async () => {
+  const searchGrants = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -513,9 +514,9 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery]);
 
-  const searchProfiles = async () => {
+  const searchProfiles = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -544,7 +545,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery]);
 
 
   const handleSearch = () => {
@@ -581,7 +582,7 @@ function App() {
       // Load initial profiles without any search query
       searchProfiles();
     }
-  }, [activeTab]);
+  }, [activeTab, grants.length, loading, profiles.length, searchGrants, searchProfiles]);
 
 
   // Result selection handlers
@@ -924,6 +925,9 @@ function App() {
           isNewProfile={isNewProfile(currentUser)}
         />
       )}
+
+      {/* Cardinal Concordia Chatbot */}
+      <CardinalConcordiaChatbot />
     </div>
   );
 }

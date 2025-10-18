@@ -49,4 +49,7 @@ urlpatterns = [
     path('grant-pipeline/entry/<int:entry_id>/', views.grant_pipeline_entry, name='grant_pipeline_entry'),
     path('grant-pipeline/entry/<int:entry_id>/move/', views.move_grant_to_stage, name='move_grant_to_stage'),
     path('pipeline-stages/', views.pipeline_stages, name='pipeline_stages'),
+    
+    # Chatbot endpoint
+    path('chatbot/', views.cardinal_concordia_chatbot, name='cardinal_concordia_chatbot'),
 ]
