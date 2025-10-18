@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import AuthComponent from './AuthComponent';
-import GrantRecommendations from './GrantRecommendations';
+import ProfessorGetStartedDialog from './ProfessorGetStartedDialog';
+import SavedGrants from './SavedGrants';
+import ProfessorOverview from './ProfessorOverview';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -247,19 +249,19 @@ const styles = {
 };
 
 function App() {
-  const [activeTab, setActiveTab] = useState('grants');
+  const [activeTab, setActiveTab] = useState('overview');
   const [grants, setGrants] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [agencyFilter, setAgencyFilter] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [useNaturalLanguage, setUseNaturalLanguage] = useState(true);
   
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [showGetStarted, setShowGetStarted] = useState(false);
 
   // Check for existing session on component mount
   useEffect(() => {
@@ -275,6 +277,10 @@ function App() {
           if (data.user) {
             setIsAuthenticated(true);
             setCurrentUser(data.user);
+    // Always show dialog for professors to review/update their profile
+    if (shouldShowGetStartedDialog(data.user)) {
+      setShowGetStarted(true);
+    }
           } else {
             // Session expired, clear localStorage and show auth
             localStorage.removeItem('session_token');
@@ -297,11 +303,57 @@ function App() {
   }, []);
 
 
+  // Helper function to check if professor profile is incomplete
+  const isProfileIncomplete = (profile) => {
+    if (!profile) return true;
+    
+    // Check for essential fields
+    const hasBasicInfo = profile.name && profile.department && profile.university;
+    const hasResearchInfo = profile.research_areas && profile.research_areas.length > 0;
+    
+    return !hasBasicInfo || !hasResearchInfo;
+  };
+
+  // Helper function to check if professor should see the get started dialog
+  const shouldShowGetStartedDialog = (user) => {
+    // Always show dialog for professors - they can review and update their profile
+    return user && user.professor_profile;
+  };
+
+  // Helper function to check if this is a new profile (incomplete)
+  const isNewProfile = (user) => {
+    if (!user?.professor_profile) return true;
+    return isProfileIncomplete(user.professor_profile);
+  };
+
   // Authentication handlers
   const handleAuthSuccess = (user) => {
     setIsAuthenticated(true);
     setCurrentUser(user);
     setShowAuth(false);
+    
+    // Always show dialog for professors to review/update their profile
+    if (shouldShowGetStartedDialog(user)) {
+      setShowGetStarted(true);
+    }
+  };
+
+  const handleProfileComplete = async () => {
+    // Refresh user data to get updated profile
+    const sessionToken = localStorage.getItem('session_token');
+    if (sessionToken) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/current-user/?session_token=${sessionToken}`);
+        const data = await response.json();
+        if (data.user) {
+          setCurrentUser(data.user);
+          localStorage.setItem('professor_profile', JSON.stringify(data.user.professor_profile));
+        }
+      } catch (err) {
+        console.error('Error refreshing user data:', err);
+      }
+    }
+    setShowGetStarted(false);
   };
 
   const handleSignOut = async () => {
@@ -335,11 +387,16 @@ function App() {
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append('q', searchQuery);
-      if (agencyFilter) params.append('agency_code', agencyFilter);
       params.append('limit', '20');
       if (sync) params.append('sync', 'true');
       
-      const response = await fetch(`${API_BASE_URL}/grants/?${params}`);
+      // Use natural language search only when there's a search query
+      // Otherwise use the regular search endpoint for initial loading
+      const endpoint = searchQuery 
+        ? `${API_BASE_URL}/search/grants/nlp/`
+        : `${API_BASE_URL}/grants/`;
+      
+      const response = await fetch(`${endpoint}?${params}`);
       if (!response.ok) throw new Error('Failed to fetch grants');
       
       const data = await response.json();
@@ -357,11 +414,16 @@ function App() {
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append('q', searchQuery);
-      if (departmentFilter) params.append('department', departmentFilter);
       params.append('limit', '20');
       if (sync) params.append('sync', 'true');
       
-      const response = await fetch(`${API_BASE_URL}/profiles/?${params}`);
+      // Use natural language search only when there's a search query
+      // Otherwise use the regular search endpoint for initial loading
+      const endpoint = searchQuery 
+        ? `${API_BASE_URL}/search/profiles/nlp/`
+        : `${API_BASE_URL}/profiles/`;
+      
+      const response = await fetch(`${endpoint}?${params}`);
       if (!response.ok) throw new Error('Failed to fetch profiles');
       
       const data = await response.json();
@@ -381,6 +443,17 @@ function App() {
       searchProfiles();
     }
   };
+
+  // Auto-search when switching to grants or profiles tabs
+  useEffect(() => {
+    if (activeTab === 'grants' && grants.length === 0 && !loading) {
+      // Load initial grants without any search query
+      searchGrants();
+    } else if (activeTab === 'profiles' && profiles.length === 0 && !loading) {
+      // Load initial profiles without any search query
+      searchProfiles();
+    }
+  }, [activeTab]);
 
   const handleSync = () => {
     if (activeTab === 'grants') {
@@ -409,9 +482,19 @@ function App() {
     <div style={styles.app}>
       <header style={styles.appHeader}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '1200px', margin: '0 auto' }}>
-          <div>
-            <h1 style={styles.appTitle}>🕊️ Cardinal Concordia</h1>
-            <p style={styles.appSubtitle}>AI-Powered Research Discovery Platform</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <img 
+              src="/images/ConcordiaLogo.png" 
+              alt="Cardinal Concordia" 
+              style={{
+                height: '160px',
+                width: 'auto',
+                objectFit: 'contain'
+              }}
+            />
+            <div>
+              <p style={styles.appSubtitle}>AI-Powered Research Discovery Platform</p>
+            </div>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -481,6 +564,12 @@ function App() {
       <div style={styles.searchContainer}>
         <div style={styles.tabButtons}>
           <button 
+            style={activeTab === 'overview' ? {...styles.tabButton, ...styles.tabButtonActive} : styles.tabButton}
+            onClick={() => setActiveTab('overview')}
+          >
+            🏠 Overview
+          </button>
+          <button 
             style={activeTab === 'grants' ? {...styles.tabButton, ...styles.tabButtonActive} : styles.tabButton}
             onClick={() => setActiveTab('grants')}
           >
@@ -493,57 +582,32 @@ function App() {
             👥 Find Researchers
           </button>
           <button 
-            style={activeTab === 'recommendations' ? {...styles.tabButton, ...styles.tabButtonActive} : styles.tabButton}
-            onClick={() => setActiveTab('recommendations')}
+            style={activeTab === 'saved' ? {...styles.tabButton, ...styles.tabButtonActive} : styles.tabButton}
+            onClick={() => setActiveTab('saved')}
           >
-            🎯 My Recommendations
+            📁 My Saved Grants
           </button>
         </div>
 
         <div style={styles.searchForm}>
           <input
             type="text"
-            placeholder={activeTab === 'grants' ? 'Search grants by keyword...' : activeTab === 'profiles' ? 'Search researchers by expertise...' : 'Get personalized grant recommendations...'}
+            placeholder={activeTab === 'overview' ? 'Welcome to your grant application dashboard...' : activeTab === 'grants' ? 'Ask about grants in natural language...' : activeTab === 'profiles' ? 'Ask about researchers in natural language...' : activeTab === 'saved' ? 'Manage your saved grants and collaborations...' : 'Search...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             style={styles.searchInput}
           />
           
-          {activeTab === 'grants' && (
-            <select 
-              value={agencyFilter} 
-              onChange={(e) => setAgencyFilter(e.target.value)}
-              style={styles.searchSelect}
-            >
-              <option value="">All Agencies</option>
-              <option value="NSF">NSF</option>
-              <option value="NIH">NIH</option>
-              <option value="ED">Department of Education</option>
-              <option value="DOE">Department of Energy</option>
-            </select>
-          )}
           
-          {activeTab === 'profiles' && (
-            <select 
-              value={departmentFilter} 
-              onChange={(e) => setDepartmentFilter(e.target.value)}
-              style={styles.searchSelect}
-            >
-              <option value="">All Departments</option>
-              <option value="Computer Science">Computer Science</option>
-              <option value="Engineering">Engineering</option>
-              <option value="Physics">Physics</option>
-              <option value="Mathematics">Mathematics</option>
-            </select>
-          )}
+          
           
           <button 
             onClick={handleSearch} 
             disabled={loading}
             style={loading ? {...styles.searchButton, ...styles.searchButtonDisabled} : styles.searchButton}
           >
-            {loading ? 'Searching...' : 'Search'}
+            {loading ? 'AI Searching...' : '🤖 AI Search'}
           </button>
           
           <button 
@@ -554,6 +618,27 @@ function App() {
             {loading ? 'Syncing...' : '🔄 Sync from IgniteHub'}
           </button>
         </div>
+        
+        {/* Natural Language Search Helper */}
+        {(activeTab === 'grants' || activeTab === 'profiles') && (
+          <div style={{
+            maxWidth: '1200px',
+            margin: '0 auto 20px',
+            background: '#f8f9fa',
+            padding: '15px 20px',
+            borderRadius: '10px',
+            border: '1px solid #e9ecef',
+            fontSize: '0.9rem',
+            color: '#495057',
+          }}>
+            <strong>💡 AI Search Examples:</strong>
+            {activeTab === 'grants' ? (
+              <span> "I'm looking for grants in artificial intelligence and machine learning", "NSF funding for renewable energy research", "Grants for early career researchers in biology"</span>
+            ) : (
+              <span> "Researchers working on climate change and sustainability", "Machine learning experts at top universities", "Professors specializing in renewable energy"</span>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -563,6 +648,13 @@ function App() {
       )}
 
       <div style={styles.resultsContainer}>
+        {activeTab === 'overview' && (
+          <ProfessorOverview
+            currentUser={currentUser}
+            onNavigateToSavedGrants={() => setActiveTab('saved')}
+          />
+        )}
+
         {activeTab === 'grants' && (
           <div>
             <h2 style={styles.resultsTitle}>Grant Opportunities ({grants.length})</h2>
@@ -572,7 +664,25 @@ function App() {
             <div style={styles.grantsGrid}>
               {grants.map((grant) => (
                 <div key={grant.id} style={styles.grantCard}>
-                  <h3 style={styles.cardTitle}>{grant.title}</h3>
+                  {grant.relevance_score && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '15px',
+                      right: '15px',
+                      background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                      color: 'white',
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      fontSize: '0.8rem',
+                      fontWeight: '600',
+                    }}>
+                      {Math.round(grant.relevance_score * 100)}% match
+                    </div>
+                  )}
+                  <h3 style={{
+                    ...styles.cardTitle,
+                    paddingRight: grant.relevance_score ? '80px' : '0px'
+                  }}>{grant.title}</h3>
                   <div style={styles.grantMeta}>
                     <span style={{...styles.metaTag, ...styles.agencyTag}}>{grant.agency_name}</span>
                     <span style={{...styles.metaTag, ...styles.closeDateTag}}>Closes: {formatDate(grant.close_date)}</span>
@@ -601,7 +711,25 @@ function App() {
             <div style={styles.profilesGrid}>
               {profiles.map((profile) => (
                 <div key={profile.email} style={styles.profileCard}>
-                  <h3 style={styles.cardTitle}>{profile.name}</h3>
+                  {profile.relevance_score && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '15px',
+                      right: '15px',
+                      background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                      color: 'white',
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      fontSize: '0.8rem',
+                      fontWeight: '600',
+                    }}>
+                      {Math.round(profile.relevance_score * 100)}% match
+                    </div>
+                  )}
+                  <h3 style={{
+                    ...styles.cardTitle,
+                    paddingRight: profile.relevance_score ? '80px' : '0px'
+                  }}>{profile.name}</h3>
                   <div style={styles.profileMeta}>
                     <span style={styles.metaTag}>{profile.position}</span>
                     <span style={styles.metaTag}>{profile.department}</span>
@@ -628,10 +756,10 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'recommendations' && (
-          <GrantRecommendations
-            currentUser={currentUser}
-            onError={setError}
+
+        {activeTab === 'saved' && (
+          <SavedGrants
+            onClose={() => setActiveTab('grants')}
           />
         )}
       </div>
@@ -642,6 +770,17 @@ function App() {
           onAuthSuccess={handleAuthSuccess}
           onClose={() => setShowAuth(false)}
           isRequired={!isAuthenticated}
+        />
+      )}
+
+      {/* Professor Get Started Dialog */}
+      {showGetStarted && (
+        <ProfessorGetStartedDialog
+          open={showGetStarted}
+          onClose={() => setShowGetStarted(false)}
+          currentUser={currentUser}
+          onProfileComplete={handleProfileComplete}
+          isNewProfile={isNewProfile(currentUser)}
         />
       )}
     </div>

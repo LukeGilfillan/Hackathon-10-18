@@ -8,15 +8,45 @@ from django.db.models import Q
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from .services import IgniteHubService
-from .models import Grant, ResearcherProfile, Professor, GrantRecommendation, GrantDraft
-from .serializers import GrantSerializer, ResearcherProfileSerializer, ProfessorSerializer, GrantRecommendationSerializer, GrantDraftSerializer, GrantDraftCreateSerializer, GrantDraftUpdateSerializer
+from .models import Grant, ResearcherProfile, Professor, GrantRecommendation, Forum, Topic, Post, PostLike, TopicSubscription, ProfessorUser, SavedGrant, CollaborationInvite, Collaboration
+from .serializers import GrantSerializer, ResearcherProfileSerializer, ProfessorSerializer, GrantRecommendationSerializer, ForumSerializer, TopicSerializer, TopicListSerializer, PostSerializer, PostLikeSerializer, TopicSubscriptionSerializer, SavedGrantSerializer, CollaborationInviteSerializer, CollaborationSerializer
 from .professor_matching_service import ProfessorGrantMatchingService
 from .professor_llm_service import ProfessorLLMService
-from .grant_draft_service import GrantDraftService
+from .natural_language_search_service import NaturalLanguageSearchService, DecimalEncoder
 import logging
+import json
 from datetime import datetime
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
+
+def get_current_user_from_request(request):
+    """Get current user from request using session token"""
+    try:
+        # Try to get session token from Authorization header first
+        auth_header = request.META.get('HTTP_AUTHORIZATION')
+        session_token = None
+        
+        if auth_header and auth_header.startswith('Token '):
+            session_token = auth_header.split(' ')[1]
+        else:
+            # Fallback to query parameter
+            session_token = request.GET.get('session_token')
+        
+        if not session_token:
+            return None
+        
+        try:
+            user = ProfessorUser.objects.get(
+                session_token=session_token,
+                is_authenticated=True
+            )
+            return user
+        except ProfessorUser.DoesNotExist:
+            return None
+    except Exception as e:
+        logger.error(f"Error getting current user from request: {str(e)}")
+        return None
 
 @api_view(['GET'])
 def hello_world(request):
@@ -121,6 +151,16 @@ def search_grants(request):
         # Apply pagination
         total_count = grants_query.count()
         grants = grants_query[offset:offset + limit]
+        
+        # Remove duplicates based on grant ID while preserving order
+        seen_grant_ids = set()
+        unique_grants = []
+        for grant in grants:
+            if grant.id not in seen_grant_ids:
+                seen_grant_ids.add(grant.id)
+                unique_grants.append(grant)
+        
+        grants = unique_grants
         
         # Serialize the results
         serializer = GrantSerializer(grants, many=True)
@@ -233,6 +273,16 @@ def search_profiles(request):
         total_count = profiles_query.count()
         profiles = profiles_query[offset:offset + limit]
         
+        # Remove duplicates based on profile email while preserving order
+        seen_profile_emails = set()
+        unique_profiles = []
+        for profile in profiles:
+            if profile.email not in seen_profile_emails:
+                seen_profile_emails.add(profile.email)
+                unique_profiles.append(profile)
+        
+        profiles = unique_profiles
+        
         # Serialize the results
         serializer = ResearcherProfileSerializer(profiles, many=True)
         
@@ -344,6 +394,16 @@ def get_professor_recommendations(request):
             logger.error(f"Error in LLM relevance analysis for professor {professor.email}: {str(e)}")
             # Continue with original scores if LLM analysis fails
             scored_grants = scored_grants[:limit]
+        
+        # Remove duplicates based on grant ID while preserving order
+        seen_grant_ids = set()
+        unique_scored_grants = []
+        for grant, score in scored_grants:
+            if grant.id not in seen_grant_ids:
+                seen_grant_ids.add(grant.id)
+                unique_scored_grants.append((grant, score))
+        
+        scored_grants = unique_scored_grants
         
         # Create recommendations in the database
         ProfessorGrantMatchingService.create_recommendations(professor, scored_grants)
@@ -502,10 +562,38 @@ def create_professor_profile(request):
 
 
 @api_view(['PUT'])
-@permission_classes([IsAuthenticated])
 def update_professor_profile(request, email):
     """Update an existing professor profile"""
     try:
+        # TEMPORARILY DISABLED AUTH FOR DEMO - TODO: Re-enable after demo
+        # Check session token authentication
+        # session_token = request.GET.get('session_token')
+        # if not session_token:
+        #     return Response({
+        #         'error': 'Session token required',
+        #         'detail': 'Please provide a valid session token'
+        #     }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # # Verify session token
+        # try:
+        #     from .models import ProfessorUser
+        #     user = ProfessorUser.objects.get(
+        #         session_token=session_token,
+        #         is_authenticated=True
+        #     )
+        # except ProfessorUser.DoesNotExist:
+        #     return Response({
+        #         'error': 'Invalid or expired session',
+        #         'detail': 'Please sign in again'
+        #     }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # # Verify the email matches the authenticated user
+        # if user.email.lower() != email.lower():
+        #     return Response({
+        #         'error': 'Unauthorized',
+        #         'detail': 'You can only update your own profile'
+        #     }, status=status.HTTP_403_FORBIDDEN)
+        
         professor = Professor.objects.get(email=email, is_active=True)
         serializer = ProfessorSerializer(professor, data=request.data, partial=True)
         if serializer.is_valid():
@@ -529,335 +617,855 @@ def update_professor_profile(request, email):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# Grant Draft Views
+# Forum Views
 
 @api_view(['GET'])
-def list_grant_drafts(request):
-    """List grant drafts for a professor"""
+def get_forums(request):
+    """Get all active forums"""
     try:
-        professor_email = request.GET.get('email')
-        if not professor_email:
-            return Response({
-                'error': 'Professor email is required',
-                'detail': 'Please provide professor email as a query parameter'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Get the professor
+        forums = Forum.objects.filter(is_active=True, is_public=True).order_by('order', 'name')
+        serializer = ForumSerializer(forums, many=True)
+        return Response({
+            'forums': serializer.data,
+            'count': len(serializer.data)
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Failed to get forums: {str(e)}")
+        return Response({
+            'error': 'Failed to get forums',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def get_forum_topics(request, forum_slug):
+    """Get topics for a specific forum"""
+    try:
+        # Get forum
         try:
-            professor = Professor.objects.get(email=professor_email, is_active=True)
-        except Professor.DoesNotExist:
+            forum = Forum.objects.get(slug=forum_slug, is_active=True, is_public=True)
+        except Forum.DoesNotExist:
             return Response({
-                'error': 'Professor not found',
-                'detail': f'No active professor found with email {professor_email}'
+                'error': f'Forum with slug {forum_slug} not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Get filter parameters
-        status_filter = request.GET.get('status')
-        grant_id = request.GET.get('grant_id')
+        # Get query parameters
+        page = request.GET.get('page', 1)
+        limit = request.GET.get('limit', 20)
         
-        # Build query
-        drafts_query = GrantDraft.objects.filter(professor=professor)
+        try:
+            page = int(page)
+            limit = int(limit)
+        except ValueError:
+            return Response({
+                'error': 'Invalid page or limit parameter'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        if status_filter:
-            drafts_query = drafts_query.filter(status=status_filter)
+        # Get topics
+        topics = forum.topics.all()
+        total_count = topics.count()
         
-        if grant_id:
-            drafts_query = drafts_query.filter(grant_id=grant_id)
+        # Apply pagination
+        offset = (page - 1) * limit
+        topics = topics[offset:offset + limit]
         
-        # Order by most recent first
-        drafts = drafts_query.order_by('-updated_at', '-created_at')
+        serializer = TopicListSerializer(topics, many=True, context={'request': request})
         
-        # Paginate results
-        paginator = PageNumberPagination()
-        paginator.page_size = 20
-        page = paginator.paginate_queryset(drafts, request)
-        
-        if page is not None:
-            serializer = GrantDraftSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
-        
-        serializer = GrantDraftSerializer(drafts, many=True)
         return Response({
+            'topics': serializer.data,
             'count': len(serializer.data),
-            'results': serializer.data
+            'total_count': total_count,
+            'page': page,
+            'limit': limit,
+            'forum': ForumSerializer(forum).data
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
-        logger.error(f"Error listing grant drafts: {str(e)}")
+        logger.error(f"Failed to get forum topics: {str(e)}")
         return Response({
-            'error': 'Failed to list grant drafts',
+            'error': 'Failed to get forum topics',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
-def get_grant_draft(request, draft_id):
-    """Get a specific grant draft"""
+def get_topic(request, topic_id):
+    """Get a specific topic with its posts"""
     try:
-        draft = GrantDraft.objects.get(id=draft_id)
-        serializer = GrantDraftSerializer(draft)
+        # Check session token authentication
+        session_token = request.GET.get('session_token')
+        if not session_token:
+            return Response({
+                'error': 'Session token required',
+                'detail': 'Please provide a valid session token'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verify session token
+        try:
+            user = ProfessorUser.objects.get(
+                session_token=session_token,
+                is_authenticated=True
+            )
+        except ProfessorUser.DoesNotExist:
+            return Response({
+                'error': 'Invalid or expired session',
+                'detail': 'Please sign in again'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get topic
+        try:
+            topic = Topic.objects.get(id=topic_id)
+        except Topic.DoesNotExist:
+            return Response({
+                'error': f'Topic with ID {topic_id} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Increment view count
+        topic.view_count += 1
+        topic.save(update_fields=['view_count'])
+        
+        serializer = TopicSerializer(topic, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
         
-    except GrantDraft.DoesNotExist:
-        return Response({
-            'error': 'Grant draft not found',
-            'detail': f'No draft found with ID {draft_id}'
-        }, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        logger.error(f"Error getting grant draft {draft_id}: {str(e)}")
+        logger.error(f"Failed to get topic {topic_id}: {str(e)}")
         return Response({
-            'error': 'Failed to get grant draft',
+            'error': f'Failed to get topic {topic_id}',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
-def create_grant_draft(request):
-    """Create a new grant draft (AI-generated or manual)"""
+def create_topic(request):
+    """Create a new topic"""
     try:
-        serializer = GrantDraftCreateSerializer(data=request.data)
-        
-        if not serializer.is_valid():
+        # Check session token authentication
+        session_token = request.data.get('session_token')
+        if not session_token:
             return Response({
-                'error': 'Invalid data',
-                'details': serializer.errors
+                'error': 'Session token required',
+                'detail': 'Please provide a valid session token'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verify session token
+        try:
+            user = ProfessorUser.objects.get(
+                session_token=session_token,
+                is_authenticated=True
+            )
+        except ProfessorUser.DoesNotExist:
+            return Response({
+                'error': 'Invalid or expired session',
+                'detail': 'Please sign in again'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get forum
+        forum_slug = request.data.get('forum_slug')
+        if not forum_slug:
+            return Response({
+                'error': 'Forum slug is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get professor and grant
-        professor = Professor.objects.get(id=serializer.validated_data['professor_id'])
-        grant = Grant.objects.get(id=serializer.validated_data['grant_id'])
-        custom_instructions = serializer.validated_data.get('custom_instructions', '')
-        
-        # Check if a draft already exists for this professor-grant combination
-        existing_draft = GrantDraft.objects.filter(
-            professor=professor,
-            grant=grant
-        ).first()
-        
-        if existing_draft:
+        try:
+            forum = Forum.objects.get(slug=forum_slug, is_active=True, is_public=True)
+        except Forum.DoesNotExist:
             return Response({
-                'error': 'Draft already exists',
-                'detail': f'A draft already exists for this professor-grant combination (ID: {existing_draft.id})',
-                'existing_draft_id': existing_draft.id
-            }, status=status.HTTP_409_CONFLICT)
+                'error': f'Forum with slug {forum_slug} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
         
-        # Generate the draft using AI
-        draft = GrantDraftService.generate_grant_draft(
-            professor=professor,
-            grant=grant,
-            custom_instructions=custom_instructions
-        )
+        # Create topic
+        topic_data = {
+            'forum': forum.id,
+            'author': user.id,
+            'title': request.data.get('title'),
+            'content': request.data.get('content'),
+            'is_anonymous': request.data.get('is_anonymous', False)
+        }
         
-        # Update with any manual content provided
-        manual_data = {k: v for k, v in serializer.validated_data.items() 
-                      if k not in ['professor_id', 'grant_id', 'custom_instructions'] and v}
-        
-        if manual_data:
-            for field, value in manual_data.items():
-                setattr(draft, field, value)
-            draft.save()
-        
-        response_serializer = GrantDraftSerializer(draft)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-        
-    except Professor.DoesNotExist:
-        return Response({
-            'error': 'Professor not found',
-            'detail': 'The specified professor does not exist or is inactive'
-        }, status=status.HTTP_404_NOT_FOUND)
-    except Grant.DoesNotExist:
-        return Response({
-            'error': 'Grant not found',
-            'detail': 'The specified grant does not exist'
-        }, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        logger.error(f"Error creating grant draft: {str(e)}")
-        return Response({
-            'error': 'Failed to create grant draft',
-            'details': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['PUT', 'PATCH'])
-def update_grant_draft(request, draft_id):
-    """Update an existing grant draft"""
-    try:
-        draft = GrantDraft.objects.get(id=draft_id)
-        
-        # Use PATCH for partial updates, PUT for full updates
-        partial = request.method == 'PATCH'
-        serializer = GrantDraftUpdateSerializer(draft, data=request.data, partial=partial)
-        
-        if not serializer.is_valid():
-            return Response({
-                'error': 'Invalid data',
-                'details': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Update the draft
-        updated_draft = serializer.save()
-        
-        response_serializer = GrantDraftSerializer(updated_draft)
-        return Response(response_serializer.data, status=status.HTTP_200_OK)
-        
-    except GrantDraft.DoesNotExist:
-        return Response({
-            'error': 'Grant draft not found',
-            'detail': f'No draft found with ID {draft_id}'
-        }, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        logger.error(f"Error updating grant draft {draft_id}: {str(e)}")
-        return Response({
-            'error': 'Failed to update grant draft',
-            'details': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['DELETE'])
-def delete_grant_draft(request, draft_id):
-    """Delete a grant draft"""
-    try:
-        draft = GrantDraft.objects.get(id=draft_id)
-        draft.delete()
-        
-        return Response({
-            'message': 'Grant draft deleted successfully'
-        }, status=status.HTTP_200_OK)
-        
-    except GrantDraft.DoesNotExist:
-        return Response({
-            'error': 'Grant draft not found',
-            'detail': f'No draft found with ID {draft_id}'
-        }, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        logger.error(f"Error deleting grant draft {draft_id}: {str(e)}")
-        return Response({
-            'error': 'Failed to delete grant draft',
-            'details': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['POST'])
-def improve_draft_section(request, draft_id):
-    """Improve a specific section of a grant draft using AI"""
-    try:
-        draft = GrantDraft.objects.get(id=draft_id)
-        
-        section_name = request.data.get('section_name')
-        improvement_instructions = request.data.get('improvement_instructions', '')
-        
-        if not section_name:
-            return Response({
-                'error': 'Section name is required',
-                'detail': 'Please specify which section to improve'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate section name
-        valid_sections = [
-            'project_summary', 'research_objectives', 'methodology', 'expected_outcomes',
-            'budget_justification', 'timeline', 'team_description', 'institutional_support',
-            'broader_impacts'
-        ]
-        
-        if section_name not in valid_sections:
-            return Response({
-                'error': 'Invalid section name',
-                'detail': f'Valid sections are: {", ".join(valid_sections)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Improve the section using AI
-        improved_content = GrantDraftService.improve_draft_section(
-            draft=draft,
-            section_name=section_name,
-            improvement_instructions=improvement_instructions
-        )
-        
-        if improved_content:
-            # Update the draft with improved content
-            setattr(draft, section_name, improved_content)
-            draft.ai_generated = False  # Mark as user-edited after AI improvement
-            draft.save()
-            
-            response_serializer = GrantDraftSerializer(draft)
-            return Response({
-                'message': f'Successfully improved {section_name} section',
-                'draft': response_serializer.data
-            }, status=status.HTTP_200_OK)
+        serializer = TopicSerializer(data=topic_data)
+        if serializer.is_valid():
+            topic = serializer.save()
+            logger.info(f"Created new topic: {topic.title} by {user.email}")
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response({
-                'error': 'Failed to improve section',
-                'detail': 'AI improvement service is not available or failed'
-            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        
-    except GrantDraft.DoesNotExist:
-        return Response({
-            'error': 'Grant draft not found',
-            'detail': f'No draft found with ID {draft_id}'
-        }, status=status.HTTP_404_NOT_FOUND)
+                'error': 'Invalid topic data',
+                'details': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
     except Exception as e:
-        logger.error(f"Error improving draft section {draft_id}: {str(e)}")
+        logger.error(f"Failed to create topic: {str(e)}")
         return Response({
-            'error': 'Failed to improve draft section',
+            'error': 'Failed to create topic',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def create_post(request):
+    """Create a new post/reply"""
+    try:
+        # Check session token authentication
+        session_token = request.data.get('session_token')
+        if not session_token:
+            return Response({
+                'error': 'Session token required',
+                'detail': 'Please provide a valid session token'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verify session token
+        try:
+            user = ProfessorUser.objects.get(
+                session_token=session_token,
+                is_authenticated=True
+            )
+        except ProfessorUser.DoesNotExist:
+            return Response({
+                'error': 'Invalid or expired session',
+                'detail': 'Please sign in again'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get topic
+        topic_id = request.data.get('topic_id')
+        if not topic_id:
+            return Response({
+                'error': 'Topic ID is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            topic = Topic.objects.get(id=topic_id)
+        except Topic.DoesNotExist:
+            return Response({
+                'error': f'Topic with ID {topic_id} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if topic is locked
+        if topic.is_locked:
+            return Response({
+                'error': 'This topic is locked and cannot receive new posts'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Create post
+        post_data = {
+            'topic': topic.id,
+            'author': user.id,
+            'content': request.data.get('content'),
+            'is_anonymous': request.data.get('is_anonymous', False),
+            'parent_post': request.data.get('parent_post_id')
+        }
+        
+        serializer = PostSerializer(data=post_data)
+        if serializer.is_valid():
+            post = serializer.save()
+            logger.info(f"Created new post in topic {topic.title} by {user.email}")
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response({
+                'error': 'Invalid post data',
+                'details': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        logger.error(f"Failed to create post: {str(e)}")
+        return Response({
+            'error': 'Failed to create post',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def toggle_post_like(request):
+    """Toggle like on a post"""
+    try:
+        # Check session token authentication
+        session_token = request.data.get('session_token')
+        if not session_token:
+            return Response({
+                'error': 'Session token required',
+                'detail': 'Please provide a valid session token'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verify session token
+        try:
+            user = ProfessorUser.objects.get(
+                session_token=session_token,
+                is_authenticated=True
+            )
+        except ProfessorUser.DoesNotExist:
+            return Response({
+                'error': 'Invalid or expired session',
+                'detail': 'Please sign in again'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get post
+        post_id = request.data.get('post_id')
+        if not post_id:
+            return Response({
+                'error': 'Post ID is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response({
+                'error': f'Post with ID {post_id} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Toggle like
+        like_type = request.data.get('like_type', 'like')
+        like, created = PostLike.objects.get_or_create(
+            post=post,
+            user=user,
+            defaults={'like_type': like_type}
+        )
+        
+        if not created:
+            # Like already exists, remove it
+            like.delete()
+            action = 'removed'
+        else:
+            # Like was created
+            action = 'added'
+        
+        # Get updated like count
+        like_count = post.likes.count()
+        
+        return Response({
+            'action': action,
+            'like_count': like_count,
+            'post_id': post_id
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Failed to toggle post like: {str(e)}")
+        return Response({
+            'error': 'Failed to toggle post like',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def toggle_topic_subscription(request):
+    """Toggle subscription to a topic"""
+    try:
+        # Check session token authentication
+        session_token = request.data.get('session_token')
+        if not session_token:
+            return Response({
+                'error': 'Session token required',
+                'detail': 'Please provide a valid session token'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verify session token
+        try:
+            user = ProfessorUser.objects.get(
+                session_token=session_token,
+                is_authenticated=True
+            )
+        except ProfessorUser.DoesNotExist:
+            return Response({
+                'error': 'Invalid or expired session',
+                'detail': 'Please sign in again'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get topic
+        topic_id = request.data.get('topic_id')
+        if not topic_id:
+            return Response({
+                'error': 'Topic ID is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            topic = Topic.objects.get(id=topic_id)
+        except Topic.DoesNotExist:
+            return Response({
+                'error': f'Topic with ID {topic_id} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Toggle subscription
+        subscription, created = TopicSubscription.objects.get_or_create(
+            topic=topic,
+            user=user
+        )
+        
+        if not created:
+            # Subscription already exists, remove it
+            subscription.delete()
+            action = 'unsubscribed'
+        else:
+            # Subscription was created
+            action = 'subscribed'
+        
+        return Response({
+            'action': action,
+            'topic_id': topic_id,
+            'is_subscribed': created
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Failed to toggle topic subscription: {str(e)}")
+        return Response({
+            'error': 'Failed to toggle topic subscription',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Saved Grants and Collaboration Views
+
+@api_view(['GET', 'POST'])
+def saved_grants(request):
+    """Get saved grants for a user or save a new grant"""
+    try:
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        if request.method == 'GET':
+            # Get saved grants for the user
+            saved_grants = SavedGrant.objects.filter(user=user).select_related('grant')
+            
+            # Filter by status if provided
+            status_filter = request.GET.get('status')
+            if status_filter:
+                saved_grants = saved_grants.filter(status=status_filter)
+            
+            serializer = SavedGrantSerializer(saved_grants, many=True)
+            # Use DecimalEncoder to handle Decimal fields in the response
+            response_data = {
+                'saved_grants': serializer.data,
+                'total_count': saved_grants.count()
+            }
+            # Convert to JSON string and back to handle Decimal fields
+            json_str = json.dumps(response_data, cls=DecimalEncoder)
+            response_data = json.loads(json_str)
+            return Response(response_data, status=status.HTTP_200_OK)
+        
+        elif request.method == 'POST':
+            # Save a new grant
+            grant_id = request.data.get('grant_id')
+            if not grant_id:
+                return Response({'error': 'grant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                grant = Grant.objects.get(id=grant_id)
+            except Grant.DoesNotExist:
+                return Response({'error': 'Grant not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check if already saved
+            if SavedGrant.objects.filter(user=user, grant=grant).exists():
+                return Response({'error': 'Grant already saved'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create saved grant
+            saved_grant = SavedGrant.objects.create(
+                user=user,
+                grant=grant,
+                notes=request.data.get('notes', ''),
+                status=request.data.get('status', 'saved'),
+                is_public=request.data.get('is_public', False),
+                allow_collaboration=request.data.get('allow_collaboration', True)
+            )
+            
+            serializer = SavedGrantSerializer(saved_grant)
+            # Use DecimalEncoder to handle Decimal fields in the response
+            response_data = {
+                'message': 'Grant saved successfully',
+                'saved_grant': serializer.data
+            }
+            # Convert to JSON string and back to handle Decimal fields
+            json_str = json.dumps(response_data, cls=DecimalEncoder)
+            response_data = json.loads(json_str)
+            return Response(response_data, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        logger.error(f"Error in saved_grants: {str(e)}")
+        return Response({
+            'error': 'Failed to process saved grants request',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PUT', 'DELETE'])
+def saved_grant_detail(request, saved_grant_id):
+    """Update or delete a saved grant"""
+    try:
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            saved_grant = SavedGrant.objects.get(id=saved_grant_id, user=user)
+        except SavedGrant.DoesNotExist:
+            return Response({'error': 'Saved grant not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if request.method == 'PUT':
+            # Update saved grant
+            serializer = SavedGrantSerializer(saved_grant, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                # Use DecimalEncoder to handle Decimal fields in the response
+                response_data = {
+                    'message': 'Saved grant updated successfully',
+                    'saved_grant': serializer.data
+                }
+                # Convert to JSON string and back to handle Decimal fields
+                json_str = json.dumps(response_data, cls=DecimalEncoder)
+                response_data = json.loads(json_str)
+                return Response(response_data, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        elif request.method == 'DELETE':
+            # Delete saved grant
+            saved_grant.delete()
+            return Response({'message': 'Saved grant deleted successfully'}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        logger.error(f"Error in saved_grant_detail: {str(e)}")
+        return Response({
+            'error': 'Failed to process saved grant request',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET', 'POST'])
+def collaboration_invites(request):
+    """Get collaboration invites for a user or send a new invite"""
+    try:
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        if request.method == 'GET':
+            # Get invites sent by user or received by user
+            invite_type = request.GET.get('type', 'received')  # 'sent' or 'received'
+            
+            if invite_type == 'sent':
+                invites = CollaborationInvite.objects.filter(inviter=user)
+            else:
+                invites = CollaborationInvite.objects.filter(invitee_email=user.email)
+            
+            # Filter by status if provided
+            status_filter = request.GET.get('status')
+            if status_filter:
+                invites = invites.filter(status=status_filter)
+            
+            serializer = CollaborationInviteSerializer(invites, many=True)
+            return Response({
+                'invites': serializer.data,
+                'total_count': invites.count()
+            }, status=status.HTTP_200_OK)
+        
+        elif request.method == 'POST':
+            # Send a new collaboration invite
+            saved_grant_id = request.data.get('saved_grant_id')
+            if not saved_grant_id:
+                return Response({'error': 'saved_grant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                saved_grant = SavedGrant.objects.get(id=saved_grant_id, user=user)
+            except SavedGrant.DoesNotExist:
+                return Response({'error': 'Saved grant not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check if user can invite collaborators
+            if not saved_grant.allow_collaboration:
+                return Response({'error': 'Collaboration not allowed for this grant'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            invitee_email = request.data.get('invitee_email')
+            if not invitee_email:
+                return Response({'error': 'invitee_email is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if already invited
+            if CollaborationInvite.objects.filter(
+                grant=saved_grant, 
+                invitee_email=invitee_email,
+                status='pending'
+            ).exists():
+                return Response({'error': 'Invitation already sent to this email'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create collaboration invite
+            invite = CollaborationInvite.objects.create(
+                grant=saved_grant,
+                inviter=user,
+                invitee_email=invitee_email,
+                invitee_name=request.data.get('invitee_name', ''),
+                message=request.data.get('message', ''),
+                role=request.data.get('role', 'collaborator')
+            )
+            
+            serializer = CollaborationInviteSerializer(invite)
+            return Response({
+                'message': 'Collaboration invite sent successfully',
+                'invite': serializer.data
+            }, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        logger.error(f"Error in collaboration_invites: {str(e)}")
+        return Response({
+            'error': 'Failed to process collaboration invites request',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PUT'])
+def collaboration_invite_response(request, invite_id):
+    """Respond to a collaboration invite (accept/decline)"""
+    try:
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            invite = CollaborationInvite.objects.get(id=invite_id, invitee_email=user.email)
+        except CollaborationInvite.DoesNotExist:
+            return Response({'error': 'Invitation not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if invite.status != 'pending':
+            return Response({'error': 'Invitation has already been responded to'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        response = request.data.get('response')  # 'accept' or 'decline'
+        if response not in ['accept', 'decline']:
+            return Response({'error': 'Response must be "accept" or "decline"'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        from django.utils import timezone
+        
+        if response == 'accept':
+            # Accept the invitation
+            invite.status = 'accepted'
+            invite.responded_at = timezone.now()
+            invite.save()
+            
+            # Create collaboration
+            collaboration = Collaboration.objects.create(
+                grant=invite.grant,
+                collaborator=user,
+                invite=invite,
+                role=invite.role,
+                contribution_notes=request.data.get('contribution_notes', '')
+            )
+            
+            collaboration_serializer = CollaborationSerializer(collaboration)
+            return Response({
+                'message': 'Collaboration invite accepted',
+                'collaboration': collaboration_serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        else:
+            # Decline the invitation
+            invite.status = 'declined'
+            invite.responded_at = timezone.now()
+            invite.save()
+            
+            return Response({'message': 'Collaboration invite declined'}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        logger.error(f"Error in collaboration_invite_response: {str(e)}")
+        return Response({
+            'error': 'Failed to process collaboration invite response',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
-def get_draft_suggestions(request, draft_id):
-    """Get AI-powered suggestions for improving a grant draft"""
+def collaborations(request):
+    """Get active collaborations for a user"""
     try:
-        draft = GrantDraft.objects.get(id=draft_id)
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
         
-        # Get suggestions using AI
-        suggestions = GrantDraftService.get_draft_suggestions(draft)
+        # Get collaborations where user is a collaborator
+        collaborations = Collaboration.objects.filter(
+            collaborator=user, 
+            is_active=True
+        ).select_related('grant__grant')
         
-        if suggestions:
-            return Response({
-                'draft_id': draft_id,
-                'suggestions': suggestions
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'error': 'Failed to generate suggestions',
-                'detail': 'AI suggestion service is not available or failed'
-            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        
-    except GrantDraft.DoesNotExist:
+        serializer = CollaborationSerializer(collaborations, many=True)
         return Response({
-            'error': 'Grant draft not found',
-            'detail': f'No draft found with ID {draft_id}'
-        }, status=status.HTTP_404_NOT_FOUND)
+            'collaborations': serializer.data,
+            'total_count': collaborations.count()
+        }, status=status.HTTP_200_OK)
+    
     except Exception as e:
-        logger.error(f"Error getting draft suggestions {draft_id}: {str(e)}")
+        logger.error(f"Error in collaborations: {str(e)}")
         return Response({
-            'error': 'Failed to get draft suggestions',
+            'error': 'Failed to get collaborations',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(['POST'])
-def create_draft_version(request, draft_id):
-    """Create a new version of an existing draft"""
+@api_view(['GET'])
+def grant_collaborators(request, saved_grant_id):
+    """Get collaborators for a specific saved grant"""
     try:
-        draft = GrantDraft.objects.get(id=draft_id)
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
         
-        # Create new version
-        new_draft = draft.create_new_version()
+        try:
+            saved_grant = SavedGrant.objects.get(id=saved_grant_id, user=user)
+        except SavedGrant.DoesNotExist:
+            return Response({'error': 'Saved grant not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        response_serializer = GrantDraftSerializer(new_draft)
+        # Get active collaborations for this grant
+        collaborations = Collaboration.objects.filter(
+            grant=saved_grant, 
+            is_active=True
+        ).select_related('collaborator')
+        
+        serializer = CollaborationSerializer(collaborations, many=True)
         return Response({
-            'message': 'New draft version created successfully',
-            'draft': response_serializer.data
-        }, status=status.HTTP_201_CREATED)
-        
-    except GrantDraft.DoesNotExist:
-        return Response({
-            'error': 'Grant draft not found',
-            'detail': f'No draft found with ID {draft_id}'
-        }, status=status.HTTP_404_NOT_FOUND)
+            'collaborators': serializer.data,
+            'total_count': collaborations.count()
+        }, status=status.HTTP_200_OK)
+    
     except Exception as e:
-        logger.error(f"Error creating draft version {draft_id}: {str(e)}")
+        logger.error(f"Error in grant_collaborators: {str(e)}")
         return Response({
-            'error': 'Failed to create draft version',
+            'error': 'Failed to get grant collaborators',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Natural Language Search endpoints
+
+@api_view(['GET'])
+def natural_language_search_grants(request):
+    """Search grants using two-stage natural language processing"""
+    try:
+        query = request.GET.get('q', '').strip()
+        limit = request.GET.get('limit', 20)
+        
+        if not query:
+            return Response({
+                'error': 'Query parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Convert limit to integer
+        try:
+            limit = int(limit)
+            if limit > 50:  # Cap at 50 for performance
+                limit = 50
+        except ValueError:
+            return Response({
+                'error': 'Invalid limit parameter'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"Starting two-stage natural language grant search for query: '{query}'")
+        
+        # Perform two-stage natural language search
+        scored_grants = NaturalLanguageSearchService.search_grants_with_nlp(query, limit)
+        
+        logger.info(f"Found {len(scored_grants)} grants with relevance scores")
+        
+        # Remove duplicates based on grant ID while preserving order
+        seen_grant_ids = set()
+        unique_scored_grants = []
+        for grant, score in scored_grants:
+            if grant.id not in seen_grant_ids:
+                seen_grant_ids.add(grant.id)
+                unique_scored_grants.append((grant, score))
+        
+        scored_grants = unique_scored_grants
+        
+        # Separate grants and scores
+        grants = [grant for grant, score in scored_grants]
+        scores = [score for grant, score in scored_grants]
+        
+        # Serialize the results
+        serializer = GrantSerializer(grants, many=True)
+        
+        # Add relevance scores to the response
+        results_with_scores = []
+        for i, grant_data in enumerate(serializer.data):
+            grant_data['relevance_score'] = scores[i] if i < len(scores) else 0.0
+            results_with_scores.append(grant_data)
+        
+        return Response({
+            'grants': results_with_scores,
+            'count': len(results_with_scores),
+            'query': query,
+            'search_type': 'two_stage_natural_language',
+            'stages': {
+                'stage1': 'AI-generated database filters',
+                'stage2': 'AI relevance ranking of top 25 results'
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Two-stage natural language grant search failed: {str(e)}")
+        return Response({
+            'error': 'Failed to perform two-stage natural language search',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def natural_language_search_profiles(request):
+    """Search researcher profiles using two-stage natural language processing"""
+    try:
+        query = request.GET.get('q', '').strip()
+        limit = request.GET.get('limit', 20)
+        
+        if not query:
+            return Response({
+                'error': 'Query parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Convert limit to integer
+        try:
+            limit = int(limit)
+            if limit > 50:  # Cap at 50 for performance
+                limit = 50
+        except ValueError:
+            return Response({
+                'error': 'Invalid limit parameter'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"Starting two-stage natural language profile search for query: '{query}'")
+        
+        # Perform two-stage natural language search
+        scored_profiles = NaturalLanguageSearchService.search_profiles_with_nlp(query, limit)
+        
+        logger.info(f"Found {len(scored_profiles)} profiles with relevance scores")
+        
+        # Remove duplicates based on profile email while preserving order
+        seen_profile_emails = set()
+        unique_scored_profiles = []
+        for profile, score in scored_profiles:
+            if profile.email not in seen_profile_emails:
+                seen_profile_emails.add(profile.email)
+                unique_scored_profiles.append((profile, score))
+        
+        scored_profiles = unique_scored_profiles
+        
+        # Separate profiles and scores
+        profiles = [profile for profile, score in scored_profiles]
+        scores = [score for profile, score in scored_profiles]
+        
+        # Serialize the results
+        serializer = ResearcherProfileSerializer(profiles, many=True)
+        
+        # Add relevance scores to the response
+        results_with_scores = []
+        for i, profile_data in enumerate(serializer.data):
+            profile_data['relevance_score'] = scores[i] if i < len(scores) else 0.0
+            results_with_scores.append(profile_data)
+        
+        return Response({
+            'profiles': results_with_scores,
+            'count': len(results_with_scores),
+            'query': query,
+            'search_type': 'two_stage_natural_language',
+            'stages': {
+                'stage1': 'AI-generated database filters',
+                'stage2': 'AI relevance ranking of top 25 results'
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Two-stage natural language profile search failed: {str(e)}")
+        return Response({
+            'error': 'Failed to perform two-stage natural language search',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

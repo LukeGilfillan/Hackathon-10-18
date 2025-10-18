@@ -5,16 +5,8 @@ import {
   Box,
   Typography,
   Paper,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Avatar,
   Chip,
   Button,
-  Divider,
-  IconButton,
   Tooltip,
   Fade,
   Grid,
@@ -27,28 +19,24 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   faCheckCircle,
-  faTimesCircle,
   faExclamationCircle,
   faExclamationTriangle,
   faCalendarAlt,
-  faFileAlt,
   faBuilding,
   faTag,
-  faMapMarkerAlt,
   faUser,
   faDollarSign,
   faIndustry,
-  faGlobe,
-  faSpinner,
+  faFileAlt,
+  faLink,
+  faPhone,
+  faInfoCircle,
+  faUsers,
+  faShieldAlt,
+  faClock,
 } from '@fortawesome/free-solid-svg-icons';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
-import BusinessIcon from '@mui/icons-material/Business';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
-import PersonIcon from '@mui/icons-material/Person';
-import CategoryIcon from '@mui/icons-material/Category';
-import ArrowForward from '@mui/icons-material/ArrowForward';
 
 // Source configuration for different grant sources
 const SOURCE_CONFIG = {
@@ -89,178 +77,6 @@ const HeaderSubtitle = styled(Typography)(({ theme }) => ({
   fontWeight: 400,
 }));
 
-const ColumnHeaders = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  padding: '12px 20px',
-  backgroundColor: alpha(theme.palette.background.default, 0.6),
-  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-}));
-
-const ColumnHeader = styled(Typography)(({ theme }) => ({
-  fontSize: '14px',
-  fontWeight: 'bold',
-  color: theme.palette.text.primary,
-  '&.date': {
-    flex: '0 0 80px',
-  },
-  '&.name': {
-    flex: '1 1 auto',
-    marginLeft: '16px',
-  },
-  '&.amount': {
-    flex: '0 0 120px',
-    textAlign: 'right',
-  },
-}));
-
-const StyledListItem = styled(ListItem)(({ theme, selected }) => ({
-  padding: 0,
-  borderBottom: `1px solid ${theme.palette.divider}`,
-  '&:last-child': {
-    borderBottom: 'none',
-  },
-  backgroundColor: selected ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
-  borderLeft: selected ? `4px solid ${theme.palette.primary.main}` : 'none',
-  position: 'relative',
-  transition: 'all 0.3s ease',
-  '&:hover': {
-    backgroundColor: alpha(theme.palette.primary.main, 0.05),
-    '& .hover-indicator': {
-      width: '4px',
-      backgroundColor: theme.palette.primary.main,
-    },
-  },
-}));
-
-const StyledListItemButton = styled(ListItemButton)(({ theme }) => ({
-  padding: '12px 20px',
-  display: 'flex',
-  alignItems: 'flex-start',
-  width: '100%',
-  flexDirection: 'column',
-  position: 'relative',
-  '&:hover': {
-    backgroundColor: 'transparent',
-  },
-}));
-
-const HoverIndicator = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  left: 0,
-  top: 0,
-  bottom: 0,
-  width: '0px',
-  backgroundColor: 'transparent',
-  transition: 'all 0.3s ease',
-}));
-
-const TransactionRow = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  width: '100%',
-  marginBottom: '12px',
-}));
-
-const TransactionDetails = styled(Box)(({ theme }) => ({
-  width: '100%',
-  marginTop: '8px',
-  paddingLeft: '56px', // Align with the content after icon
-}));
-
-const OverviewSection = styled(Box)(({ theme }) => ({
-  marginBottom: '12px',
-  padding: '8px 12px',
-  backgroundColor: alpha(theme.palette.background.default, 0.5),
-  borderRadius: '6px',
-  border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-}));
-
-const DetailsGrid = styled(Box)(({ theme }) => ({
-  display: 'grid',
-  gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr', lg: '1fr 1fr 1fr 1fr' },
-  gap: theme.spacing(1.5),
-  marginTop: theme.spacing(0.5),
-}));
-
-const DetailColumn = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: theme.spacing(0.5),
-}));
-
-const DetailItem = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  gap: theme.spacing(0.5),
-  padding: '2px 0',
-  minHeight: '20px',
-}));
-
-const TransactionIcon = styled(Avatar)(({ theme, iconcolor }) => ({
-  width: 40,
-  height: 40,
-  backgroundColor: iconcolor || theme.palette.primary.main,
-  marginRight: '16px',
-  '& .MuiSvgIcon-root': {
-    fontSize: '20px',
-    color: theme.palette.common.white,
-  },
-}));
-
-const TransactionDate = styled(Typography)(({ theme }) => ({
-  fontSize: '14px',
-  color: theme.palette.text.primary,
-  fontWeight: 500,
-  flex: '0 0 80px',
-}));
-
-const TransactionName = styled(Box)(({ theme }) => ({
-  flex: '1 1 auto',
-  marginLeft: '16px',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'flex-start',
-}));
-
-const TransactionTitle = styled(Typography)(({ theme }) => ({
-  fontSize: '14px',
-  color: theme.palette.text.primary,
-  fontWeight: 500,
-  marginBottom: '4px',
-  lineHeight: 1.3,
-}));
-
-const TransactionStatus = styled(Chip)(({ theme }) => ({
-  fontSize: '12px',
-  height: '20px',
-  backgroundColor: theme.palette.warning.light,
-  color: theme.palette.warning.contrastText,
-  '& .MuiChip-label': {
-    padding: '0 8px',
-  },
-}));
-
-const TransactionAmount = styled(Box)(({ theme }) => ({
-  flex: '0 0 120px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  gap: '8px',
-}));
-
-const AmountText = styled(Typography, {
-  shouldForwardProp: (prop) => prop !== 'positive',
-})(({ theme, positive }) => ({
-  fontSize: '14px',
-  fontWeight: 'bold',
-  color: positive ? theme.palette.success.main : theme.palette.text.primary,
-}));
-
-const ArrowIcon = styled(ArrowForward)(({ theme }) => ({
-  fontSize: '16px',
-  color: theme.palette.text.secondary,
-}));
 
 const FooterButton = styled(Button)(({ theme }) => ({
   width: '100%',
@@ -410,11 +226,6 @@ const formatDate = (dateString) => {
   });
 };
 
-const formatShortDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  return `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
-};
 
 const RecommendationsListWrapper = ({
   opportunities = [],
@@ -443,23 +254,19 @@ const RecommendationsListWrapper = ({
     return { icon: faCheckCircle, color: 'success.main' };
   };
 
-  const getStatusChip = (opportunity) => {
-    if (opportunity.active === false) {
-      return <TransactionStatus label="Inactive" size="small" />;
+  const getCatholicComplianceIcon = (compliance) => {
+    switch (compliance) {
+      case 'compliant':
+        return { icon: faCheckCircle, color: 'success.main', label: 'Compliant' };
+      case 'flagged':
+        return { icon: faExclamationTriangle, color: 'warning.main', label: 'Flagged' };
+      case 'non_compliant':
+        return { icon: faExclamationCircle, color: 'error.main', label: 'Non-Compliant' };
+      default:
+        return { icon: faInfoCircle, color: 'info.main', label: 'Not Reviewed' };
     }
-    if (opportunity.responseDeadline) {
-      const daysLeft = getDaysUntilDeadline(opportunity.responseDeadline);
-
-      if (daysLeft <= 0) {
-        return <TransactionStatus label="Expired" size="small" />;
-      } else if (daysLeft <= 7) {
-        return <TransactionStatus label="Urgent" size="small" />;
-      } else if (daysLeft <= 30) {
-        return <TransactionStatus label="Due Soon" size="small" />;
-      }
-    }
-    return null;
   };
+
 
   const handleLoadMore = () => {
     if (onLoadMore) {
@@ -602,7 +409,7 @@ const RecommendationsListWrapper = ({
       <HeaderSection>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <Box>
-            <HeaderTitle>GovRat AI Recommendations</HeaderTitle>
+            <HeaderTitle>Cardinal Concordia AI Recommendations</HeaderTitle>
             <HeaderSubtitle>
               {isLoading
                 ? "We are filtering our database for your best opportunities"
@@ -649,7 +456,7 @@ const RecommendationsListWrapper = ({
           ) : (
             displayedOpportunities.map((opportunity, index) => {
           const isSelected = currentIndex === index;
-          const daysUntilDeadline = opportunity.responseDeadline ? getDaysUntilDeadline(opportunity.responseDeadline) : null;
+          const daysUntilDeadline = opportunity.close_date ? getDaysUntilDeadline(opportunity.close_date) : null;
           const deadlineIcon = daysUntilDeadline ? getDeadlineIcon(daysUntilDeadline) : null;
 
           return (
@@ -722,20 +529,20 @@ const RecommendationsListWrapper = ({
                           },
                         }}>
                           <Chip
-                            label={SOURCE_CONFIG[opportunity.source]?.label || 'Unknown Source'}
+                            label={SOURCE_CONFIG[opportunity.agency_code]?.label || opportunity.agency_code || 'Government'}
                             size="small"
                             color="info"
                           />
                           <StatusChip
-                            label={opportunity.active ? 'Active' : 'Inactive'}
-                            active={opportunity.active}
-                            icon={opportunity.active ? <CheckCircleIcon /> : <CancelIcon />}
+                            label={opportunity.is_closed ? 'Closed' : 'Active'}
+                            active={!opportunity.is_closed}
+                            icon={opportunity.is_closed ? <CancelIcon /> : <CheckCircleIcon />}
                             size="small"
                           />
-                          {opportunity.type && opportunity.type !== 'N/A' && (
+                          {opportunity.funding_instrument_type && opportunity.funding_instrument_type !== 'N/A' && (
                             <Chip
                               icon={<FontAwesomeIcon icon={faTag} style={{ color: 'white' }} />}
-                              label={opportunity.type}
+                              label={opportunity.funding_instrument_type}
                               size="small"
                               sx={{
                                 borderRadius: '20px',
@@ -745,10 +552,10 @@ const RecommendationsListWrapper = ({
                               }}
                             />
                           )}
-                          {opportunity.setAside && opportunity.setAside !== 'N/A' && opportunity.setAside !== 'None' && (
+                          {opportunity.category_of_funding_activity && opportunity.category_of_funding_activity !== 'N/A' && (
                             <Chip
                               icon={<FontAwesomeIcon icon={faTag} style={{ color: 'white' }} />}
-                              label={opportunity.setAside.length > 10 ? `${opportunity.setAside.substring(0, 10)}...` : opportunity.setAside}
+                              label={opportunity.category_of_funding_activity}
                               size="small"
                               sx={{
                                 borderRadius: '20px',
@@ -758,10 +565,10 @@ const RecommendationsListWrapper = ({
                               }}
                             />
                           )}
-                          {opportunity.naicsCode && (
+                          {opportunity.cfda_numbers && (
                             <Chip
                               icon={<FontAwesomeIcon icon={faIndustry} style={{ color: 'white' }} />}
-                              label={`NAICS: ${opportunity.naicsCode}`}
+                              label={`CFDA: ${opportunity.cfda_numbers}`}
                               size="small"
                               sx={{
                                 borderRadius: '20px',
@@ -772,7 +579,7 @@ const RecommendationsListWrapper = ({
                             />
                           )}
                           {deadlineIcon && (
-                            <Tooltip title={`${daysUntilDeadline} ${daysUntilDeadline === 1 ? 'day' : 'days'} left until the response deadline`} arrow>
+                            <Tooltip title={`${daysUntilDeadline} ${daysUntilDeadline === 1 ? 'day' : 'days'} left until the application deadline`} arrow>
                               <Chip
                                 icon={<FontAwesomeIcon icon={deadlineIcon.icon} />}
                                 label={`${daysUntilDeadline} ${daysUntilDeadline === 1 ? 'day' : 'days'} left`}
@@ -785,11 +592,27 @@ const RecommendationsListWrapper = ({
                               />
                             </Tooltip>
                           )}
+                          {opportunity.catholic_social_teaching_compliance && (
+                            <Tooltip title={`Catholic Social Teaching Compliance: ${getCatholicComplianceIcon(opportunity.catholic_social_teaching_compliance).label}`} arrow>
+                              <Chip
+                                icon={<FontAwesomeIcon icon={getCatholicComplianceIcon(opportunity.catholic_social_teaching_compliance).icon} />}
+                                label={getCatholicComplianceIcon(opportunity.catholic_social_teaching_compliance).label}
+                                color={getCatholicComplianceIcon(opportunity.catholic_social_teaching_compliance).color.split('.')[0]}
+                                size="small"
+                                sx={{
+                                  borderRadius: '20px',
+                                  backgroundColor: theme.palette[getCatholicComplianceIcon(opportunity.catholic_social_teaching_compliance).color.split('.')[0]].main,
+                                  color: 'white',
+                                  fontWeight: 600,
+                                }}
+                              />
+                            </Tooltip>
+                          )}
                         </Box>
                       </Box>
 
-                      {/* 2-Sentence Overview - Full Width Display */}
-                      {(opportunity.ai_two_sentence_overview || opportunity.ai_general_description) && (
+                      {/* Full Description Display */}
+                      {opportunity.description && (
                         <Box sx={{ mb: 2, width: '100%' }}>
                           <Typography
                             variant="body1"
@@ -802,7 +625,7 @@ const RecommendationsListWrapper = ({
                               maxWidth: '100%',
                             }}
                           >
-                            {opportunity.ai_two_sentence_overview || opportunity.ai_general_description}
+                            {opportunity.description}
                           </Typography>
                         </Box>
                       )}
@@ -810,7 +633,7 @@ const RecommendationsListWrapper = ({
                       {/* Key Information Cards */}
                       <Box sx={{
                         display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' },
+                        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr', lg: '1fr 1fr 1fr 1fr 1fr' },
                         gap: 1.5,
                         mt: 2,
                         width: '100%',
@@ -818,7 +641,7 @@ const RecommendationsListWrapper = ({
                         overflow: 'hidden'
                       }}>
                         {/* Agency Card */}
-                        {opportunity.organizationName && (
+                        {opportunity.agency_name && (
                           <Box sx={{
                             display: 'flex',
                             alignItems: 'center',
@@ -862,16 +685,14 @@ const RecommendationsListWrapper = ({
                                 maxWidth: '100%',
                                 minWidth: 0
                               }}>
-                                {opportunity.organizationName && opportunity.organizationName.length > 25
-                                  ? `${opportunity.organizationName.substring(0, 25)}...`
-                                  : opportunity.organizationName}
+                                {opportunity.agency_name}
                               </Typography>
                             </Box>
                             </Box>
                           )}
 
                         {/* Financial Card */}
-                        {(opportunity.awardAmount || (opportunity.ai_estimated_total_award && opportunity.ai_estimated_total_award.amount && opportunity.ai_estimated_total_award.amount !== 'N/A')) && (
+                        {(opportunity.award_floor || opportunity.award_ceiling || opportunity.estimated_total_program_funding) && (
                           <Box sx={{
                             display: 'flex',
                             alignItems: 'center',
@@ -904,17 +725,25 @@ const RecommendationsListWrapper = ({
                         </Box>
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                               <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                {opportunity.ai_estimated_total_award ? 'AI Estimated Value' : 'Est. Value'}
+                                Funding Range
                               </Typography>
                               <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5, color: theme.palette.success.main }}>
-                                {opportunity.ai_estimated_total_award?.amount || formatCurrency(opportunity.awardAmount)}
+                                {opportunity.award_floor && opportunity.award_ceiling 
+                                  ? `${formatCurrency(opportunity.award_floor)} - ${formatCurrency(opportunity.award_ceiling)}`
+                                  : opportunity.estimated_total_program_funding 
+                                    ? formatCurrency(opportunity.estimated_total_program_funding)
+                                    : opportunity.award_floor 
+                                      ? `From ${formatCurrency(opportunity.award_floor)}`
+                                      : opportunity.award_ceiling 
+                                        ? `Up to ${formatCurrency(opportunity.award_ceiling)}`
+                                        : 'N/A'}
                               </Typography>
                             </Box>
                             </Box>
                           )}
 
-                        {/* Location Card */}
-                          {(opportunity.popCity || opportunity.popState) && (
+                        {/* Deadline Card */}
+                          {opportunity.close_date && (
                           <Box sx={{
                             display: 'flex',
                             alignItems: 'center',
@@ -943,21 +772,21 @@ const RecommendationsListWrapper = ({
                               justifyContent: 'center',
                               color: 'white',
                             }}>
-                              <FontAwesomeIcon icon={faMapMarkerAlt} />
+                              <FontAwesomeIcon icon={faCalendarAlt} />
                             </Box>
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                               <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Location
+                                Deadline
                               </Typography>
                               <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {[opportunity.popCity, opportunity.popState].filter(Boolean).join(', ')}
+                                {formatDate(opportunity.close_date)}
                               </Typography>
                             </Box>
                             </Box>
                           )}
 
                         {/* Contact Email Card */}
-                        {opportunity.contactEmail && (
+                        {opportunity.grantor_contact_email && (
                           <Box sx={{
                             display: 'flex',
                             alignItems: 'center',
@@ -1001,16 +830,14 @@ const RecommendationsListWrapper = ({
                                 maxWidth: '100%',
                                 minWidth: 0
                               }}>
-                                {opportunity.contactEmail && opportunity.contactEmail.length > 25
-                                  ? `${opportunity.contactEmail.substring(0, 25)}...`
-                                  : opportunity.contactEmail}
+                                {opportunity.grantor_contact_email}
                               </Typography>
                             </Box>
                             </Box>
                           )}
 
                         {/* Contact Phone Card - Show if contact phone exists and we have space */}
-                        {(opportunity.contactPhone || opportunity.contactPhoneNumber) && (
+                        {opportunity.grantor_contact_phone_number && (
                           <Box sx={{
                             display: 'flex',
                             alignItems: 'center',
@@ -1039,7 +866,7 @@ const RecommendationsListWrapper = ({
                               justifyContent: 'center',
                               color: 'white',
                             }}>
-                              <FontAwesomeIcon icon={faUser} />
+                              <FontAwesomeIcon icon={faPhone} />
                             </Box>
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                               <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -1054,14 +881,260 @@ const RecommendationsListWrapper = ({
                                 maxWidth: '100%',
                                 minWidth: 0
                               }}>
-                                {(opportunity.contactPhone || opportunity.contactPhoneNumber) && (opportunity.contactPhone || opportunity.contactPhoneNumber).length > 25
-                                  ? `${(opportunity.contactPhone || opportunity.contactPhoneNumber).substring(0, 25)}...`
-                                  : (opportunity.contactPhone || opportunity.contactPhoneNumber)}
+                                {opportunity.grantor_contact_phone_number}
+                              </Typography>
+                            </Box>
+                            </Box>
+                          )}
+
+                        {/* Expected Number of Awards Card */}
+                        {opportunity.expected_number_of_awards && (
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            p: 1.5,
+                            backgroundColor: alpha(theme.palette.purple?.main || theme.palette.secondary.main, 0.05),
+                            borderRadius: '12px',
+                            border: `1px solid ${alpha(theme.palette.purple?.main || theme.palette.secondary.main, 0.1)}`,
+                            transition: 'all 0.3s ease',
+                            minWidth: 0,
+                            width: '100%',
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.purple?.main || theme.palette.secondary.main, 0.08),
+                              boxShadow: `0 4px 12px ${alpha(theme.palette.purple?.main || theme.palette.secondary.main, 0.15)}`,
+                            }
+                          }}>
+                            <Box sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '10px',
+                              backgroundColor: theme.palette.purple?.main || theme.palette.secondary.main,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'white',
+                            }}>
+                              <FontAwesomeIcon icon={faUsers} />
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Expected Awards
+                              </Typography>
+                              <Typography variant="body2" sx={{
+                                fontWeight: 500,
+                                mt: 0.5,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                maxWidth: '100%',
+                                minWidth: 0
+                              }}>
+                                {opportunity.expected_number_of_awards}
+                              </Typography>
+                            </Box>
+                            </Box>
+                          )}
+
+                        {/* Additional Information URL Card */}
+                        {opportunity.additional_information_url && (
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            p: 1.5,
+                            backgroundColor: alpha(theme.palette.info.main, 0.05),
+                            borderRadius: '12px',
+                            border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
+                            transition: 'all 0.3s ease',
+                            minWidth: 0,
+                            width: '100%',
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.info.main, 0.08),
+                              boxShadow: `0 4px 12px ${alpha(theme.palette.info.main, 0.15)}`,
+                            }
+                          }}>
+                            <Box sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '10px',
+                              backgroundColor: theme.palette.info.main,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'white',
+                            }}>
+                              <FontAwesomeIcon icon={faLink} />
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                More Info
+                              </Typography>
+                              <Typography variant="body2" sx={{
+                                fontWeight: 500,
+                                mt: 0.5,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                maxWidth: '100%',
+                                minWidth: 0,
+                                color: theme.palette.info.main,
+                                cursor: 'pointer',
+                                '&:hover': {
+                                  textDecoration: 'underline'
+                                }
+                              }}
+                              onClick={() => window.open(opportunity.additional_information_url, '_blank')}
+                              >
+                                View Details
+                              </Typography>
+                            </Box>
+                            </Box>
+                          )}
+
+                        {/* Post Date Card */}
+                        {opportunity.post_date && (
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            p: 1.5,
+                            backgroundColor: alpha(theme.palette.success.main, 0.05),
+                            borderRadius: '12px',
+                            border: `1px solid ${alpha(theme.palette.success.main, 0.1)}`,
+                            transition: 'all 0.3s ease',
+                            minWidth: 0,
+                            width: '100%',
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.success.main, 0.08),
+                              boxShadow: `0 4px 12px ${alpha(theme.palette.success.main, 0.15)}`,
+                            }
+                          }}>
+                            <Box sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '10px',
+                              backgroundColor: theme.palette.success.main,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'white',
+                            }}>
+                              <FontAwesomeIcon icon={faClock} />
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Posted
+                              </Typography>
+                              <Typography variant="body2" sx={{
+                                fontWeight: 500,
+                                mt: 0.5,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                maxWidth: '100%',
+                                minWidth: 0
+                              }}>
+                                {formatDate(opportunity.post_date)}
                               </Typography>
                             </Box>
                             </Box>
                           )}
                       </Box>
+
+                      {/* Additional Details Section */}
+                      {(opportunity.eligible_applicants || opportunity.additional_information_on_eligibility || 
+                        opportunity.cost_sharing_or_matching_requirement || opportunity.additional_information_text ||
+                        opportunity.grantor_contact_text || opportunity.catholic_social_teaching_notes) && (
+                        <Box sx={{ mt: 2 }}>
+                          <Typography variant="h6" sx={{ 
+                            fontWeight: 600, 
+                            mb: 1.5, 
+                            color: theme.palette.text.primary,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}>
+                            <FontAwesomeIcon icon={faFileAlt} />
+                            Additional Details
+                          </Typography>
+                          
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                            {opportunity.eligible_applicants && (
+                              <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.primary.main, 0.05), borderRadius: '8px', border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.primary.main }}>
+                                  Eligible Applicants
+                                </Typography>
+                                <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                                  {opportunity.eligible_applicants}
+                                </Typography>
+                              </Box>
+                            )}
+                            
+                            {opportunity.additional_information_on_eligibility && (
+                              <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.info.main, 0.05), borderRadius: '8px', border: `1px solid ${alpha(theme.palette.info.main, 0.1)}` }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.info.main }}>
+                                  Additional Eligibility Information
+                                </Typography>
+                                <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                                  {opportunity.additional_information_on_eligibility}
+                                </Typography>
+                              </Box>
+                            )}
+                            
+                            {opportunity.cost_sharing_or_matching_requirement && (
+                              <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.warning.main, 0.05), borderRadius: '8px', border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}` }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.warning.main }}>
+                                  Cost Sharing/Matching Requirements
+                                </Typography>
+                                <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                                  {opportunity.cost_sharing_or_matching_requirement}
+                                </Typography>
+                              </Box>
+                            )}
+                            
+                            {opportunity.additional_information_text && (
+                              <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.secondary.main, 0.05), borderRadius: '8px', border: `1px solid ${alpha(theme.palette.secondary.main, 0.1)}` }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.secondary.main }}>
+                                  Additional Information
+                                </Typography>
+                                <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                                  {opportunity.additional_information_text}
+                                </Typography>
+                              </Box>
+                            )}
+                            
+                            {opportunity.grantor_contact_text && (
+                              <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.success.main, 0.05), borderRadius: '8px', border: `1px solid ${alpha(theme.palette.success.main, 0.1)}` }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.success.main }}>
+                                  Contact Information
+                                </Typography>
+                                <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                                  {opportunity.grantor_contact_text}
+                                </Typography>
+                              </Box>
+                            )}
+                            
+                            {opportunity.catholic_social_teaching_notes && (
+                              <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.error.main, 0.05), borderRadius: '8px', border: `1px solid ${alpha(theme.palette.error.main, 0.1)}` }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.error.main, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <FontAwesomeIcon icon={faShieldAlt} />
+                                  Catholic Social Teaching Review Notes
+                                </Typography>
+                                <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                                  {opportunity.catholic_social_teaching_notes}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      )}
 
                     </CardContent>
                   </Box>

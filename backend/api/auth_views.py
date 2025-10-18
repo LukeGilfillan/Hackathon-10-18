@@ -64,8 +64,22 @@ def sign_up(request):
                     'id': professor_profile.id,
                     'name': professor_profile.name,
                     'email': professor_profile.email,
+                    'title': professor_profile.title,
                     'department': professor_profile.department,
-                    'university': professor_profile.university
+                    'school': professor_profile.school,
+                    'university': professor_profile.university,
+                    'research_areas': professor_profile.research_areas,
+                    'expertise_keywords': professor_profile.expertise_keywords,
+                    'research_interests': professor_profile.research_interests,
+                    'current_projects': professor_profile.current_projects,
+                    'preferred_agencies': professor_profile.preferred_agencies,
+                    'preferred_funding_types': professor_profile.preferred_funding_types,
+                    'preferred_award_ranges': professor_profile.preferred_award_ranges,
+                    'travel_willingness': professor_profile.travel_willingness,
+                    'collaboration_style': professor_profile.collaboration_style,
+                    'max_applications_per_year': professor_profile.max_applications_per_year,
+                    'website_url': professor_profile.website_url,
+                    'contact_info': professor_profile.contact_info
                 }
             }
         }, status=status.HTTP_201_CREATED)
@@ -120,8 +134,22 @@ def sign_in(request):
                     'id': professor_profile.id,
                     'name': professor_profile.name,
                     'email': professor_profile.email,
+                    'title': professor_profile.title,
                     'department': professor_profile.department,
-                    'university': professor_profile.university
+                    'school': professor_profile.school,
+                    'university': professor_profile.university,
+                    'research_areas': professor_profile.research_areas,
+                    'expertise_keywords': professor_profile.expertise_keywords,
+                    'research_interests': professor_profile.research_interests,
+                    'current_projects': professor_profile.current_projects,
+                    'preferred_agencies': professor_profile.preferred_agencies,
+                    'preferred_funding_types': professor_profile.preferred_funding_types,
+                    'preferred_award_ranges': professor_profile.preferred_award_ranges,
+                    'travel_willingness': professor_profile.travel_willingness,
+                    'collaboration_style': professor_profile.collaboration_style,
+                    'max_applications_per_year': professor_profile.max_applications_per_year,
+                    'website_url': professor_profile.website_url,
+                    'contact_info': professor_profile.contact_info
                 }
             }
         }, status=status.HTTP_200_OK)
@@ -214,7 +242,16 @@ def get_current_user(request):
                     'university': professor_profile.university,
                     'research_areas': professor_profile.research_areas,
                     'expertise_keywords': professor_profile.expertise_keywords,
-                    'research_interests': professor_profile.research_interests
+                    'research_interests': professor_profile.research_interests,
+                    'current_projects': professor_profile.current_projects,
+                    'preferred_agencies': professor_profile.preferred_agencies,
+                    'preferred_funding_types': professor_profile.preferred_funding_types,
+                    'preferred_award_ranges': professor_profile.preferred_award_ranges,
+                    'travel_willingness': professor_profile.travel_willingness,
+                    'collaboration_style': professor_profile.collaboration_style,
+                    'max_applications_per_year': professor_profile.max_applications_per_year,
+                    'website_url': professor_profile.website_url,
+                    'contact_info': professor_profile.contact_info
                 }
             }
         }, status=status.HTTP_200_OK)
