@@ -12,6 +12,7 @@ import {
   Grid,
   Card,
   CardContent,
+  CircularProgress,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -412,7 +413,12 @@ const RecommendationsListWrapper = ({
             <HeaderTitle>Cardinal Concordia AI Recommendations</HeaderTitle>
             <HeaderSubtitle>
               {isLoading
-                ? "We are filtering our database for your best opportunities"
+                ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={16} thickness={4} />
+                    <span>🤖 AI is analyzing professor profiles and grant contracts...</span>
+                  </Box>
+                )
                 : `RECENT RECOMMENDATIONS - You have ${opportunities.length} opportunity recommendations`
               }
             </HeaderSubtitle>

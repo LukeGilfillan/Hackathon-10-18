@@ -1,4 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box,
+  CircularProgress,
+  Typography,
+  useTheme,
+  alpha
+} from '@mui/material';
 import RecommendationsListWrapper from './RecommendationsListWrapper';
 import SavedGrantsSummary from './SavedGrantsSummary';
 
@@ -6,6 +13,7 @@ const API_BASE_URL = 'http://localhost:8000/api';
 
 const GrantRecommendations = ({ currentUser, onError }) => {
   console.log('GrantRecommendations component rendering with currentUser:', currentUser?.email);
+  const theme = useTheme();
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -151,11 +159,67 @@ const GrantRecommendations = ({ currentUser, onError }) => {
 
   if (loading) {
     return (
-      <RecommendationsListWrapper
-        opportunities={[]}
-        isLoading={true}
-        showList={true}
-      />
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '300px',
+          padding: '40px 20px',
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+          borderRadius: '16px',
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+        }}
+      >
+        <CircularProgress 
+          size={60} 
+          thickness={4}
+          sx={{ 
+            color: 'primary.main',
+            marginBottom: '20px'
+          }} 
+        />
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            fontWeight: 'bold',
+            color: 'primary.main',
+            marginBottom: '8px',
+            textAlign: 'center'
+          }}
+        >
+          🤖 AI is searching for your perfect matches...
+        </Typography>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: 'text.secondary',
+            textAlign: 'center',
+            maxWidth: '400px',
+            lineHeight: 1.6
+          }}
+        >
+          Our AI is analyzing your research profile and matching it with the best grant opportunities and potential collaborators.
+        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            marginTop: '16px',
+            padding: '8px 16px',
+            backgroundColor: alpha(theme.palette.primary.main, 0.1),
+            borderRadius: '20px',
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+          }}
+        >
+          <CircularProgress size={16} thickness={4} />
+          <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 'medium' }}>
+            Processing professor profiles and grant contracts...
+          </Typography>
+        </Box>
+      </Box>
     );
   }
 

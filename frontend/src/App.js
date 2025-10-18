@@ -4,6 +4,7 @@ import AuthComponent from './AuthComponent';
 import ProfessorGetStartedDialog from './ProfessorGetStartedDialog';
 import SavedGrants from './SavedGrants';
 import ProfessorOverview from './ProfessorOverview';
+import SearchResultsWrapper from './SearchResultsWrapper';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -257,6 +258,12 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [useNaturalLanguage, setUseNaturalLanguage] = useState(true);
   
+  // Search results display state
+  const [showGrantList, setShowGrantList] = useState(false);
+  const [showProfileList, setShowProfileList] = useState(false);
+  const [selectedGrantIndex, setSelectedGrantIndex] = useState(0);
+  const [selectedProfileIndex, setSelectedProfileIndex] = useState(0);
+  
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -401,6 +408,11 @@ function App() {
       
       const data = await response.json();
       setGrants(data.grants || []);
+      
+      // Auto-show list when results are loaded
+      if (data.grants && data.grants.length > 0) {
+        setShowGrantList(true);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -428,6 +440,11 @@ function App() {
       
       const data = await response.json();
       setProfiles(data.profiles || []);
+      
+      // Auto-show list when results are loaded
+      if (data.profiles && data.profiles.length > 0) {
+        setShowProfileList(true);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -461,6 +478,19 @@ function App() {
     } else if (activeTab === 'profiles') {
       searchProfiles(true);
     }
+  };
+
+  // Result selection handlers
+  const handleGrantSelection = (grant, index) => {
+    setSelectedGrantIndex(index);
+    // You can add additional logic here for grant selection
+    console.log('Selected grant:', grant);
+  };
+
+  const handleProfileSelection = (profile, index) => {
+    setSelectedProfileIndex(index);
+    // You can add additional logic here for profile selection
+    console.log('Selected profile:', profile);
   };
 
   const formatDate = (dateString) => {
@@ -656,104 +686,31 @@ function App() {
         )}
 
         {activeTab === 'grants' && (
-          <div>
-            <h2 style={styles.resultsTitle}>Grant Opportunities ({grants.length})</h2>
-            {grants.length === 0 && !loading && (
-              <p style={styles.noResults}>No grants found. Try adjusting your search criteria.</p>
-            )}
-            <div style={styles.grantsGrid}>
-              {grants.map((grant) => (
-                <div key={grant.id} style={styles.grantCard}>
-                  {grant.relevance_score && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '15px',
-                      right: '15px',
-                      background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-                      color: 'white',
-                      padding: '5px 12px',
-                      borderRadius: '20px',
-                      fontSize: '0.8rem',
-                      fontWeight: '600',
-                    }}>
-                      {Math.round(grant.relevance_score * 100)}% match
-                    </div>
-                  )}
-                  <h3 style={{
-                    ...styles.cardTitle,
-                    paddingRight: grant.relevance_score ? '80px' : '0px'
-                  }}>{grant.title}</h3>
-                  <div style={styles.grantMeta}>
-                    <span style={{...styles.metaTag, ...styles.agencyTag}}>{grant.agency_name}</span>
-                    <span style={{...styles.metaTag, ...styles.closeDateTag}}>Closes: {formatDate(grant.close_date)}</span>
-                  </div>
-                  <div style={styles.grantAmounts}>
-                    <span style={styles.amountTag}>Amount: {formatCurrency(grant.award_floor)} - {formatCurrency(grant.award_ceiling)}</span>
-                  </div>
-                  <p style={styles.grantDescription}>
-                    {grant.description ? grant.description.substring(0, 200) + '...' : 'No description available'}
-                  </p>
-                  <div style={styles.grantCategory}>
-                    Category: {grant.category_of_funding_activity || 'N/A'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <SearchResultsWrapper
+            results={grants}
+            resultType="grants"
+            onSelectResult={handleGrantSelection}
+            currentIndex={selectedGrantIndex}
+            showList={showGrantList}
+            onToggleList={() => setShowGrantList(!showGrantList)}
+            isLoading={loading}
+            query={searchQuery}
+            showFooter={true}
+          />
         )}
 
         {activeTab === 'profiles' && (
-          <div>
-            <h2 style={styles.resultsTitle}>Researcher Profiles ({profiles.length})</h2>
-            {profiles.length === 0 && !loading && (
-              <p style={styles.noResults}>No researchers found. Try adjusting your search criteria.</p>
-            )}
-            <div style={styles.profilesGrid}>
-              {profiles.map((profile) => (
-                <div key={profile.email} style={styles.profileCard}>
-                  {profile.relevance_score && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '15px',
-                      right: '15px',
-                      background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-                      color: 'white',
-                      padding: '5px 12px',
-                      borderRadius: '20px',
-                      fontSize: '0.8rem',
-                      fontWeight: '600',
-                    }}>
-                      {Math.round(profile.relevance_score * 100)}% match
-                    </div>
-                  )}
-                  <h3 style={{
-                    ...styles.cardTitle,
-                    paddingRight: profile.relevance_score ? '80px' : '0px'
-                  }}>{profile.name}</h3>
-                  <div style={styles.profileMeta}>
-                    <span style={styles.metaTag}>{profile.position}</span>
-                    <span style={styles.metaTag}>{profile.department}</span>
-                  </div>
-                  <div style={styles.profileSchool}>
-                    {profile.school}
-                  </div>
-                  {profile.expertise && profile.expertise.length > 0 && (
-                    <div style={styles.profileExpertise}>
-                      <strong>Expertise:</strong> {profile.expertise.join(', ')}
-                    </div>
-                  )}
-                  <div style={styles.profileContact}>
-                    📧 {profile.email}
-                  </div>
-                  {profile.bio && (
-                    <p style={styles.profileBio}>
-                      {profile.bio.substring(0, 150) + '...'}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          <SearchResultsWrapper
+            results={profiles}
+            resultType="profiles"
+            onSelectResult={handleProfileSelection}
+            currentIndex={selectedProfileIndex}
+            showList={showProfileList}
+            onToggleList={() => setShowProfileList(!showProfileList)}
+            isLoading={loading}
+            query={searchQuery}
+            showFooter={true}
+          />
         )}
 
 
