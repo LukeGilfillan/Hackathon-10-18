@@ -148,8 +148,10 @@ class TeamRecommendationService:
             scored_professors = []
             for professor in professors:
                 score = TeamRecommendationService._score_professor_for_grant(professor, grant)
-                if score > 0:  # Only include professors with positive scores
-                    scored_professors.append((professor, score))
+                # Include all professors, but give a minimum score to ensure we get results
+                if score == 0:
+                    score = 1.0  # Minimum score to ensure inclusion
+                scored_professors.append((professor, score))
             
             # Sort by score
             scored_professors.sort(key=lambda x: x[1], reverse=True)
@@ -210,7 +212,7 @@ class TeamRecommendationService:
     def _score_professor_for_grant(professor: Professor, grant: Grant) -> float:
         """Score how well a professor fits a grant"""
         try:
-            score = 0.0
+            score = 5.0  # Base score to ensure all professors get some points
             
             # Research area matching
             if professor.research_areas and grant.description:
@@ -253,11 +255,19 @@ class TeamRecommendationService:
                 if min_pref <= grant_amount <= max_pref:
                     score += 10
             
+            # Bonus for having research areas (even if not matching)
+            if professor.research_areas and len(professor.research_areas) > 0:
+                score += 5
+            
+            # Bonus for having expertise keywords
+            if professor.expertise_keywords and len(professor.expertise_keywords) > 0:
+                score += 3
+            
             return score
             
         except Exception as e:
             logger.error(f"Error scoring professor for grant: {str(e)}")
-            return 0.0
+            return 5.0  # Return base score on error
     
     @staticmethod
     def _select_diverse_team_member(

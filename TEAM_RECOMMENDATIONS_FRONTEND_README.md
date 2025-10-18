@@ -9,17 +9,17 @@ The `TeamRecommendations` component provides a user-friendly interface for disco
 ## Component Features
 
 ### 🎯 **Core Functionality**
-- **Search Interface**: Natural language search for grants
+- **Automatic Grant Discovery**: AI automatically finds grant opportunities
 - **Team Configuration**: Adjustable team size (2-6 members) and diversity settings
-- **AI-Powered Results**: Displays team recommendations with collaboration pitches
+- **AI-Powered Matching**: Displays team recommendations with collaboration pitches
 - **Interactive Cards**: Expandable cards showing detailed team information and pitches
 
 ### 🎨 **UI Components**
 
-#### Search and Filters
-- **Search Bar**: Natural language input for grant discovery
+#### Team Configuration
 - **Team Size Selector**: Dropdown to choose team size (2-6 members)
 - **Diversity Toggle**: Option to include/exclude diversity considerations
+- **Find Teams Button**: Triggers AI to find grant-team matches
 - **Results Counter**: Shows number of recommendations found
 
 #### Team Recommendation Cards
@@ -75,10 +75,10 @@ const [expandedCards, setExpandedCards] = useState({});
 
 ### 📱 **User Experience**
 
-#### Search Flow
-1. **Enter Query**: User types natural language search
-2. **Configure Team**: Select team size and diversity preferences
-3. **AI Processing**: System finds grants and generates teams
+#### Discovery Flow
+1. **Configure Team**: Select team size and diversity preferences
+2. **Find Matches**: Click button to trigger AI grant-team matching
+3. **AI Processing**: System automatically finds grants and generates teams
 4. **View Results**: Browse team recommendations with scores
 5. **Explore Details**: Expand cards to see collaboration pitches
 6. **Take Action**: Save recommendations or view grant details
@@ -172,11 +172,12 @@ function App() {
 ### Navigation
 The component is accessible via the "🤝 Team Recommendations" tab in the main navigation.
 
-### Search Examples
-- "AI research grants for machine learning"
-- "NSF funding for renewable energy"
-- "Grants for interdisciplinary research teams"
-- "Climate change research opportunities"
+### How It Works
+The system automatically:
+- Finds recent active grant opportunities
+- Matches them with suitable professor teams
+- Generates collaboration pitches
+- Ranks results by team synergy and grant fit
 
 ## Future Enhancements
 
