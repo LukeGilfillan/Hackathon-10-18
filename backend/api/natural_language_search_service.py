@@ -120,7 +120,7 @@ class NaturalLanguageSearchService:
             
             # Stage 2: Get all grants and score them using the parameters
             print("📊 Stage 2: Retrieving grants from database...")
-            all_grants = list(Grant.objects.all()[:100])
+            all_grants = list(Grant.objects.all()[:25])
             logger.info(f"Retrieved {len(all_grants)} grants from database")
             print(f"✅ Retrieved {len(all_grants)} grants from database")
             
