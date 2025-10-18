@@ -135,6 +135,11 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
   }
 
   const totalGrants = savedGrants.length;
+
+  // Don't display the component if there are no saved grants
+  if (totalGrants === 0) {
+    return null;
+  }
   const statusCounts = savedGrants.reduce((acc, grant) => {
     acc[grant.status] = (acc[grant.status] || 0) + 1;
     return acc;
@@ -164,119 +169,101 @@ const SavedGrantsSummary = ({ onNavigateToSavedGrants }) => {
             </Button>
           </Box>
 
-          {totalGrants > 0 ? (
-            <>
-              {/* Statistics */}
-              <Grid container spacing={2} mb={2}>
-                <Grid item xs={4}>
-                  <StatCard>
-                    <Typography variant="h5" color="primary" fontWeight="bold">
-                      {totalGrants}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Total Saved
-                    </Typography>
-                  </StatCard>
-                </Grid>
-                <Grid item xs={4}>
-                  <StatCard>
-                    <Typography variant="h5" color="warning.main" fontWeight="bold">
-                      {upcomingDeadlines}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Upcoming
-                    </Typography>
-                  </StatCard>
-                </Grid>
-                <Grid item xs={4}>
-                  <StatCard>
-                    <Typography variant="h5" color="success.main" fontWeight="bold">
-                      {statusCounts.submitted || 0}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Submitted
-                    </Typography>
-                  </StatCard>
-                </Grid>
-              </Grid>
+          {/* Statistics */}
+          <Grid container spacing={2} mb={2}>
+            <Grid item xs={4}>
+              <StatCard>
+                <Typography variant="h5" color="primary" fontWeight="bold">
+                  {totalGrants}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Total Saved
+                </Typography>
+              </StatCard>
+            </Grid>
+            <Grid item xs={4}>
+              <StatCard>
+                <Typography variant="h5" color="warning.main" fontWeight="bold">
+                  {upcomingDeadlines}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Upcoming
+                </Typography>
+              </StatCard>
+            </Grid>
+            <Grid item xs={4}>
+              <StatCard>
+                <Typography variant="h5" color="success.main" fontWeight="bold">
+                  {statusCounts.submitted || 0}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Submitted
+                </Typography>
+              </StatCard>
+            </Grid>
+          </Grid>
 
-              {/* Recent Grants */}
-              <Typography variant="subtitle2" color="text.secondary" mb={1}>
-                Recent Activity
-              </Typography>
-              <List>
-                {recentGrants.map((grant, index) => {
-                  const daysLeft = getDaysUntilDeadline(grant.grant.close_date);
-                  const deadlineColor = getDeadlineColor(daysLeft);
-                  
-                  return (
-                    <React.Fragment key={grant.id}>
-                      <ListItem sx={{ px: 0, py: 1 }}>
-                        <ListItemIcon>
-                          <Avatar sx={{ 
-                            bgcolor: statusColors[grant.status], 
-                            width: 28, 
-                            height: 28 
-                          }}>
-                            {statusIcons[grant.status]}
-                          </Avatar>
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Typography variant="body2" fontWeight="medium" sx={{
-                              display: '-webkit-box',
-                              WebkitLineClamp: 1,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                            }}>
-                              {grant.grant.title}
-                            </Typography>
-                          }
-                          secondary={
-                            <Box display="flex" alignItems="center" gap={1}>
-                              <Chip
-                                label={grant.status_display}
-                                size="small"
-                                sx={{
-                                  bgcolor: statusColors[grant.status],
-                                  color: 'white',
-                                  fontSize: '0.7rem',
-                                  height: 18
-                                }}
-                              />
-                              {daysLeft > 0 && daysLeft <= 30 && (
-                                <Chip
-                                  label={`${daysLeft}d left`}
-                                  size="small"
-                                  color={deadlineColor}
-                                  sx={{ fontSize: '0.7rem', height: 18 }}
-                                />
-                              )}
-                            </Box>
-                          }
-                        />
-                      </ListItem>
-                      {index < recentGrants.length - 1 && <Divider />}
-                    </React.Fragment>
-                  );
-                })}
-              </List>
-            </>
-          ) : (
-            <Box textAlign="center" py={3}>
-              <FolderIcon sx={{ fontSize: 48, color: theme.palette.text.secondary, mb: 2 }} />
-              <Typography variant="body2" color="text.secondary" mb={2}>
-                No saved grants yet. Start by saving grants from your recommendations!
-              </Typography>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={onNavigateToSavedGrants}
-              >
-                View All Grants
-              </Button>
-            </Box>
-          )}
+          {/* Recent Grants */}
+          <Typography variant="subtitle2" color="text.secondary" mb={1}>
+            Recent Activity
+          </Typography>
+          <List>
+            {recentGrants.map((grant, index) => {
+              const daysLeft = getDaysUntilDeadline(grant.grant.close_date);
+              const deadlineColor = getDeadlineColor(daysLeft);
+              
+              return (
+                <React.Fragment key={grant.id}>
+                  <ListItem sx={{ px: 0, py: 1 }}>
+                    <ListItemIcon>
+                      <Avatar sx={{ 
+                        bgcolor: statusColors[grant.status], 
+                        width: 28, 
+                        height: 28 
+                      }}>
+                        {statusIcons[grant.status]}
+                      </Avatar>
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography variant="body2" fontWeight="medium" sx={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 1,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}>
+                          {grant.grant.title}
+                        </Typography>
+                      }
+                      secondary={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Chip
+                            label={grant.status_display}
+                            size="small"
+                            sx={{
+                              bgcolor: statusColors[grant.status],
+                              color: 'white',
+                              fontSize: '0.7rem',
+                              height: 18
+                            }}
+                          />
+                          {daysLeft > 0 && daysLeft <= 30 && (
+                            <Chip
+                              label={`${daysLeft}d left`}
+                              size="small"
+                              color={deadlineColor}
+                              sx={{ fontSize: '0.7rem', height: 18 }}
+                            />
+                          )}
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                  {index < recentGrants.length - 1 && <Divider />}
+                </React.Fragment>
+              );
+            })}
+          </List>
         </CardContent>
       </StyledCard>
     </Box>

@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { styled } from '@mui/material/styles';
 import {
   Box,
@@ -27,22 +27,20 @@ import {
   faUser,
   faDollarSign,
   faIndustry,
-  faFileAlt,
   faLink,
-  faPhone,
   faInfoCircle,
-  faUsers,
-  faShieldAlt,
-  faClock,
   faGraduationCap,
   faUniversity,
   faEnvelope,
-  faGlobe,
-  faBook,
   faFlask,
 } from '@fortawesome/free-solid-svg-icons';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
+import CircularProgress from '@mui/material/CircularProgress';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 
 const StyledContainer = styled(Paper)(({ theme }) => ({
   width: '100%',
@@ -238,6 +236,9 @@ const SearchResultsWrapper = ({
 }) => {
   const theme = useTheme();
   const [displayCount, setDisplayCount] = useState(5);
+  const [savedGrantIds, setSavedGrantIds] = useState(new Set());
+  const [savingGrantId, setSavingGrantId] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const getDaysUntilDeadline = (deadline) => {
     const now = new Date();
@@ -263,6 +264,94 @@ const SearchResultsWrapper = ({
       default:
         return { icon: faInfoCircle, color: 'info.main', label: 'Not Reviewed' };
     }
+  };
+
+  // Fetch saved grants on component mount
+  useEffect(() => {
+    const fetchSavedGrants = async () => {
+      try {
+        const sessionToken = localStorage.getItem('session_token');
+        if (!sessionToken) return;
+
+              const response = await fetch('http://localhost:8000/api/grant-pipeline/', {
+          headers: {
+            'Authorization': `Token ${sessionToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const savedIds = new Set(data.pipeline_entries?.map(entry => entry.grant.id) || []);
+          setSavedGrantIds(savedIds);
+        }
+      } catch (err) {
+        console.error('Error fetching saved grants:', err);
+      }
+    };
+
+    fetchSavedGrants();
+  }, []);
+
+  const handleSaveGrant = async (grantId, event) => {
+    event.stopPropagation(); // Prevent card selection when clicking save button
+    
+    const sessionToken = localStorage.getItem('session_token');
+    if (!sessionToken) {
+      setSnackbar({
+        open: true,
+        message: 'Please sign in to save grants',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setSavingGrantId(grantId);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/grant-pipeline/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${sessionToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          grant_id: grantId,
+          stage_name: 'Saved Opportunities',
+          notes: '',
+          priority: 'medium'
+        })
+      });
+
+      if (response.ok) {
+        setSavedGrantIds(prev => new Set([...prev, grantId]));
+        setSnackbar({
+          open: true,
+          message: 'Grant saved to pipeline successfully!',
+          severity: 'success'
+        });
+      } else {
+        const errorData = await response.json();
+        setSnackbar({
+          open: true,
+          message: errorData.error || 'Failed to save grant',
+          severity: 'error'
+        });
+      }
+    } catch (err) {
+      console.error('Error saving grant:', err);
+      setSnackbar({
+        open: true,
+        message: 'Network error. Please try again.',
+        severity: 'error'
+      });
+    } finally {
+      setSavingGrantId(null);
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
   };
 
   const handleLoadMore = () => {
@@ -356,18 +445,68 @@ const SearchResultsWrapper = ({
         {/* Header Section */}
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
           <Box sx={{ flex: 1, mr: 2 }}>
-            <Typography
-              variant="h6"
-              gutterBottom
-              className="grant-title"
-              sx={{
-                fontWeight: 600,
-                lineHeight: 1.3,
-                color: theme.palette.text.primary,
-              }}
-            >
-              {grant.title}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Typography
+                variant="h6"
+                className="grant-title"
+                sx={{
+                  fontWeight: 600,
+                  lineHeight: 1.3,
+                  color: theme.palette.text.primary,
+                  flex: 1,
+                }}
+              >
+                {grant.title}
+              </Typography>
+              
+              {/* Save Button */}
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={(e) => handleSaveGrant(grant.id, e)}
+                disabled={savingGrantId === grant.id}
+                startIcon={
+                  savingGrantId === grant.id ? (
+                    <CircularProgress size={16} />
+                  ) : savedGrantIds.has(grant.id) ? (
+                    <BookmarkIcon />
+                  ) : (
+                    <BookmarkBorderIcon />
+                  )
+                }
+                sx={{
+                  minWidth: 'auto',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: '20px',
+                  borderColor: savedGrantIds.has(grant.id) 
+                    ? theme.palette.success.main 
+                    : theme.palette.primary.main,
+                  color: savedGrantIds.has(grant.id) 
+                    ? theme.palette.success.main 
+                    : theme.palette.primary.main,
+                  backgroundColor: savedGrantIds.has(grant.id) 
+                    ? alpha(theme.palette.success.main, 0.1) 
+                    : 'transparent',
+                  '&:hover': {
+                    backgroundColor: savedGrantIds.has(grant.id) 
+                      ? alpha(theme.palette.success.main, 0.2) 
+                      : alpha(theme.palette.primary.main, 0.1),
+                    borderColor: savedGrantIds.has(grant.id) 
+                      ? theme.palette.success.dark 
+                      : theme.palette.primary.dark,
+                  },
+                  '&:disabled': {
+                    opacity: 0.6,
+                  },
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                }}
+              >
+                {savedGrantIds.has(grant.id) ? 'Saved' : 'Save'}
+              </Button>
+            </Box>
           </Box>
 
           <Box sx={{
@@ -1227,6 +1366,22 @@ const SearchResultsWrapper = ({
           </FooterButton>
         </Box>
       )}
+
+      {/* Snackbar for save notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </StyledContainer>
   );
 };

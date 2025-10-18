@@ -8,8 +8,8 @@ from django.db.models import Q
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from .services import IgniteHubService
-from .models import Grant, ResearcherProfile, Professor, GrantRecommendation, Forum, Topic, Post, PostLike, TopicSubscription, ProfessorUser, SavedGrant, CollaborationInvite, Collaboration
-from .serializers import GrantSerializer, ResearcherProfileSerializer, ProfessorSerializer, GrantRecommendationSerializer, ForumSerializer, TopicSerializer, TopicListSerializer, PostSerializer, PostLikeSerializer, TopicSubscriptionSerializer, SavedGrantSerializer, CollaborationInviteSerializer, CollaborationSerializer
+from .models import Grant, ResearcherProfile, Professor, GrantRecommendation, Forum, Topic, Post, PostLike, TopicSubscription, ProfessorUser, SavedGrant, CollaborationInvite, Collaboration, GrantPipelineStage, GrantPipelineEntry
+from .serializers import GrantSerializer, ResearcherProfileSerializer, ProfessorSerializer, GrantRecommendationSerializer, ForumSerializer, TopicSerializer, TopicListSerializer, PostSerializer, PostLikeSerializer, TopicSubscriptionSerializer, SavedGrantSerializer, CollaborationInviteSerializer, CollaborationSerializer, GrantPipelineStageSerializer, GrantPipelineEntrySerializer
 from .professor_matching_service import ProfessorGrantMatchingService
 from .professor_llm_service import ProfessorLLMService
 from .natural_language_search_service import NaturalLanguageSearchService, DecimalEncoder
@@ -1485,6 +1485,182 @@ def natural_language_search_profiles(request):
         logger.error(f"Two-stage natural language profile search failed: {str(e)}")
         return Response({
             'error': 'Failed to perform two-stage natural language search',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Grant Pipeline Views
+
+@api_view(['GET', 'POST'])
+def grant_pipeline(request):
+    """Get or add grants to professor's pipeline"""
+    try:
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get professor profile
+        professor = user.get_or_create_professor_profile()
+        
+        if request.method == 'GET':
+            # Get pipeline stages and grants
+            stages = professor.get_or_create_pipeline_stages()
+            stage_serializer = GrantPipelineStageSerializer(stages, many=True)
+            
+            # Get all pipeline entries
+            pipeline_entries = professor.get_pipeline_grants()
+            entry_serializer = GrantPipelineEntrySerializer(pipeline_entries, many=True)
+            
+            return Response({
+                'stages': stage_serializer.data,
+                'pipeline_entries': entry_serializer.data,
+                'total_grants': pipeline_entries.count()
+            }, status=status.HTTP_200_OK)
+        
+        elif request.method == 'POST':
+            # Add grant to pipeline
+            grant_id = request.data.get('grant_id')
+            stage_name = request.data.get('stage_name', 'Saved Opportunities')
+            notes = request.data.get('notes', '')
+            priority = request.data.get('priority', 'medium')
+            
+            if not grant_id:
+                return Response({'error': 'grant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                grant = Grant.objects.get(id=grant_id)
+            except Grant.DoesNotExist:
+                return Response({'error': 'Grant not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Add grant to pipeline
+            pipeline_entry = professor.add_grant_to_pipeline(
+                grant=grant,
+                stage_name=stage_name,
+                notes=notes,
+                priority=priority
+            )
+            
+            serializer = GrantPipelineEntrySerializer(pipeline_entry)
+            return Response({
+                'message': 'Grant added to pipeline successfully',
+                'pipeline_entry': serializer.data
+            }, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        logger.error(f"Error in grant_pipeline: {str(e)}")
+        return Response({
+            'error': 'Failed to process pipeline request',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PUT', 'DELETE'])
+def grant_pipeline_entry(request, entry_id):
+    """Update or remove a grant from pipeline"""
+    try:
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get professor profile
+        professor = user.get_or_create_professor_profile()
+        
+        try:
+            pipeline_entry = GrantPipelineEntry.objects.get(id=entry_id, professor=professor)
+        except GrantPipelineEntry.DoesNotExist:
+            return Response({'error': 'Pipeline entry not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if request.method == 'PUT':
+            # Update pipeline entry
+            serializer = GrantPipelineEntrySerializer(pipeline_entry, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'message': 'Pipeline entry updated successfully',
+                    'pipeline_entry': serializer.data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        elif request.method == 'DELETE':
+            # Remove grant from pipeline
+            pipeline_entry.delete()
+            return Response({'message': 'Grant removed from pipeline successfully'}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        logger.error(f"Error in grant_pipeline_entry: {str(e)}")
+        return Response({
+            'error': 'Failed to process pipeline entry request',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PUT'])
+def move_grant_to_stage(request, entry_id):
+    """Move a grant to a different pipeline stage"""
+    try:
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get professor profile
+        professor = user.get_or_create_professor_profile()
+        
+        try:
+            pipeline_entry = GrantPipelineEntry.objects.get(id=entry_id, professor=professor)
+        except GrantPipelineEntry.DoesNotExist:
+            return Response({'error': 'Pipeline entry not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        stage_name = request.data.get('stage_name')
+        if not stage_name:
+            return Response({'error': 'stage_name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            new_stage = GrantPipelineStage.objects.get(professor=professor, name=stage_name)
+        except GrantPipelineStage.DoesNotExist:
+            return Response({'error': f'Stage "{stage_name}" not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Move grant to new stage
+        pipeline_entry.move_to_stage(new_stage)
+        
+        serializer = GrantPipelineEntrySerializer(pipeline_entry)
+        return Response({
+            'message': f'Grant moved to {stage_name} successfully',
+            'pipeline_entry': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        logger.error(f"Error in move_grant_to_stage: {str(e)}")
+        return Response({
+            'error': 'Failed to move grant to stage',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def pipeline_stages(request):
+    """Get pipeline stages for a professor"""
+    try:
+        user = get_current_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get professor profile
+        professor = user.get_or_create_professor_profile()
+        
+        # Get or create pipeline stages
+        stages = professor.get_or_create_pipeline_stages()
+        serializer = GrantPipelineStageSerializer(stages, many=True)
+        
+        return Response({
+            'stages': serializer.data,
+            'total_stages': stages.count()
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        logger.error(f"Error in pipeline_stages: {str(e)}")
+        return Response({
+            'error': 'Failed to get pipeline stages',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

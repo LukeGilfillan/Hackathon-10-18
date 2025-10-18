@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
 import json
 import uuid
 
@@ -296,6 +297,62 @@ class Professor(models.Model):
         if isinstance(self.expertise_keywords, list):
             return any(keyword.lower() in exp.lower() for exp in self.expertise_keywords)
         return keyword.lower() in str(self.expertise_keywords).lower()
+    
+    def get_or_create_pipeline_stages(self):
+        """Get or create default pipeline stages for this professor"""
+        stages = GrantPipelineStage.objects.filter(professor=self)
+        if not stages.exists():
+            GrantPipelineStage.create_default_stages(self)
+            stages = GrantPipelineStage.objects.filter(professor=self)
+        return stages
+    
+    def add_grant_to_pipeline(self, grant, stage_name='Saved Opportunities', notes='', priority='medium'):
+        """Add a grant to the professor's pipeline"""
+        # Get or create pipeline stages
+        self.get_or_create_pipeline_stages()
+        
+        # Get the specified stage
+        try:
+            stage = GrantPipelineStage.objects.get(professor=self, name=stage_name)
+        except GrantPipelineStage.DoesNotExist:
+            # If stage doesn't exist, use the first stage (Saved Opportunities)
+            stage = GrantPipelineStage.objects.filter(professor=self).first()
+        
+        # Check if grant is already in pipeline
+        existing_entry = GrantPipelineEntry.objects.filter(professor=self, grant=grant).first()
+        if existing_entry:
+            # Move to new stage if different
+            if existing_entry.stage != stage:
+                existing_entry.move_to_stage(stage)
+            return existing_entry
+        
+        # Create new pipeline entry
+        pipeline_entry = GrantPipelineEntry.objects.create(
+            professor=self,
+            grant=grant,
+            stage=stage,
+            notes=notes,
+            priority=priority,
+            application_deadline=grant.close_date
+        )
+        
+        # Add grant to stage's many-to-many relationship
+        stage.add_grant(grant)
+        
+        return pipeline_entry
+    
+    def get_pipeline_grants(self, stage_name=None):
+        """Get grants in the professor's pipeline, optionally filtered by stage"""
+        if stage_name:
+            return GrantPipelineEntry.objects.filter(
+                professor=self, 
+                stage__name=stage_name
+            ).select_related('grant', 'stage')
+        return GrantPipelineEntry.objects.filter(professor=self).select_related('grant', 'stage')
+    
+    def get_saved_grants(self):
+        """Get grants in the 'Saved Opportunities' stage"""
+        return self.get_pipeline_grants('Saved Opportunities')
 
 
 class GrantRecommendation(models.Model):
@@ -575,6 +632,128 @@ class Collaboration(models.Model):
     
     def __str__(self):
         return f"Collaboration: {self.collaborator.email} on {self.grant.grant.title}"
+
+
+# Grant Pipeline Models
+
+class GrantPipelineStage(models.Model):
+    """Model for grant pipeline stages (similar to PipelineStage for contracts)"""
+    
+    professor = models.ForeignKey(Professor, on_delete=models.CASCADE, related_name='pipeline_stages')
+    name = models.CharField(max_length=100)
+    order = models.IntegerField()
+    color = models.CharField(max_length=7, default='#16B1FF')  # Hex color code
+    grants = models.ManyToManyField(Grant, blank=True, related_name='pipeline_stages')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('professor', 'name')]
+        ordering = ['order']
+
+    def __str__(self):
+        return f"{self.name} ({self.professor.name})"
+
+    @classmethod
+    def create_default_stages(cls, professor):
+        """Create default pipeline stages for a professor"""
+        default_stages = [
+            {'name': 'Saved Opportunities', 'color': '#16B1FF', 'order': 0},
+            {'name': 'Research & Planning', 'color': '#FFB400', 'order': 1},
+            {'name': 'Proposal Development', 'color': '#00C853', 'order': 2},
+            {'name': 'Application Submitted', 'color': '#FF5252', 'order': 3},
+            {'name': 'Grant Awarded', 'color': '#7C4DFF', 'order': 4},
+            {'name': 'Not Awarded', 'color': '#9E9E9E', 'order': 5}
+        ]
+
+        for stage_data in default_stages:
+            cls.objects.get_or_create(
+                professor=professor,
+                name=stage_data['name'],
+                defaults={
+                    'order': stage_data['order'],
+                    'color': stage_data['color']
+                }
+            )
+
+    def add_grant(self, grant):
+        """Add a grant to this pipeline stage"""
+        if not self.grants.filter(id=grant.id).exists():
+            self.grants.add(grant)
+            return True
+        return False
+
+    def remove_grant(self, grant):
+        """Remove a grant from this pipeline stage"""
+        if self.grants.filter(id=grant.id).exists():
+            self.grants.remove(grant)
+            return True
+        return False
+
+
+class GrantPipelineEntry(models.Model):
+    """Model for tracking grants through pipeline stages with additional metadata"""
+    
+    professor = models.ForeignKey(Professor, on_delete=models.CASCADE, related_name='pipeline_entries')
+    grant = models.ForeignKey(Grant, on_delete=models.CASCADE, related_name='pipeline_entries')
+    stage = models.ForeignKey(GrantPipelineStage, on_delete=models.CASCADE, related_name='entries')
+    
+    # Additional metadata
+    notes = models.TextField(blank=True, null=True)
+    priority = models.CharField(
+        max_length=20,
+        choices=[
+            ('low', 'Low'),
+            ('medium', 'Medium'),
+            ('high', 'High'),
+            ('critical', 'Critical'),
+        ],
+        default='medium'
+    )
+    
+    # Application tracking
+    application_deadline = models.DateField(null=True, blank=True)
+    application_submitted_date = models.DateField(null=True, blank=True)
+    decision_date = models.DateField(null=True, blank=True)
+    decision_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('awarded', 'Awarded'),
+            ('rejected', 'Rejected'),
+            ('withdrawn', 'Withdrawn'),
+        ],
+        default='pending'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    moved_to_stage_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['professor', 'grant']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['professor', 'stage']),
+            models.Index(fields=['professor', 'priority']),
+            models.Index(fields=['application_deadline']),
+        ]
+
+    def __str__(self):
+        return f"{self.professor.name} - {self.grant.title} ({self.stage.name})"
+
+    def move_to_stage(self, new_stage):
+        """Move this grant to a new pipeline stage"""
+        if new_stage.professor != self.professor:
+            raise ValueError("Cannot move grant to stage belonging to different professor")
+        
+        self.stage = new_stage
+        self.moved_to_stage_at = timezone.now()
+        self.save()
+        
+        # Update the stage's grants many-to-many relationship
+        self.stage.grants.add(self.grant)
 
 
 # Forum Models

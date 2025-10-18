@@ -1,12 +1,79 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import { 
+  TextField, 
+  Button, 
+  IconButton, 
+  InputAdornment, 
+  CircularProgress,
+  Box,
+  Typography,
+  Fade
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import MicIcon from '@mui/icons-material/Mic';
+import MicOffIcon from '@mui/icons-material/MicOff';
+import { alpha, styled } from '@mui/material/styles';
 import AuthComponent from './AuthComponent';
 import ProfessorGetStartedDialog from './ProfessorGetStartedDialog';
 import SavedGrants from './SavedGrants';
 import ProfessorOverview from './ProfessorOverview';
 import SearchResultsWrapper from './SearchResultsWrapper';
+import Forum from './Forum';
 
 const API_BASE_URL = 'http://localhost:8000/api';
+
+// Styled components
+const AnimatedSearchIcon = styled(SearchIcon)(({ theme }) => ({
+  animation: 'pulse 2s infinite',
+  '@keyframes pulse': {
+    '0%': {
+      transform: 'scale(1)',
+      opacity: 1,
+    },
+    '50%': {
+      transform: 'scale(1.1)',
+      opacity: 0.7,
+    },
+    '100%': {
+      transform: 'scale(1)',
+      opacity: 1,
+    },
+  },
+}));
+
+const StyledSearchButton = styled(Button)(({ theme, $isLoading }) => ({
+  borderRadius: '25px',
+  padding: '12px 24px',
+  minWidth: '120px',
+  height: '48px',
+  background: $isLoading 
+    ? `linear-gradient(135deg, ${alpha('#dc3545', 0.7)} 0%, ${alpha('#c82333', 0.7)} 100%)`
+    : `linear-gradient(135deg, #dc3545 0%, #c82333 100%)`,
+  color: 'white',
+  fontWeight: 600,
+  fontSize: '1rem',
+  textTransform: 'none',
+  boxShadow: `0 4px 15px ${alpha('#dc3545', 0.3)}`,
+  transition: 'all 0.3s ease',
+  position: 'relative',
+  overflow: 'hidden',
+  '&:hover': {
+    background: `linear-gradient(135deg, #c82333 0%, #dc3545 100%)`,
+    boxShadow: `0 6px 20px ${alpha('#dc3545', 0.4)}`,
+    transform: 'translateY(-2px)',
+  },
+  '&:disabled': {
+    background: `linear-gradient(135deg, ${alpha('#6c757d', 0.7)} 0%, ${alpha('#495057', 0.7)} 100%)`,
+    color: alpha('#ffffff', 0.7),
+    boxShadow: 'none',
+    transform: 'none',
+  },
+  '& .button-text': {
+    transition: 'opacity 0.3s ease',
+    opacity: $isLoading ? 0 : 1,
+  },
+}));
 
 // Inline styles
 const styles = {
@@ -256,7 +323,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [useNaturalLanguage, setUseNaturalLanguage] = useState(true);
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState(null);
   
   // Search results display state
   const [showGrantList, setShowGrantList] = useState(false);
@@ -306,6 +374,34 @@ function App() {
     } else {
       // No session found, show auth dialog
       setShowAuth(true);
+    }
+  }, []);
+
+  // Setup speech recognition
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window) {
+      const recognition = new window.webkitSpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        setSearchQuery(transcript);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      setRecognition(recognition);
     }
   }, []);
 
@@ -388,14 +484,13 @@ function App() {
     setCurrentUser(null);
   };
 
-  const searchGrants = async (sync = false) => {
+  const searchGrants = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append('q', searchQuery);
       params.append('limit', '20');
-      if (sync) params.append('sync', 'true');
       
       // Use natural language search only when there's a search query
       // Otherwise use the regular search endpoint for initial loading
@@ -420,14 +515,13 @@ function App() {
     }
   };
 
-  const searchProfiles = async (sync = false) => {
+  const searchProfiles = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append('q', searchQuery);
       params.append('limit', '20');
-      if (sync) params.append('sync', 'true');
       
       // Use natural language search only when there's a search query
       // Otherwise use the regular search endpoint for initial loading
@@ -461,6 +555,23 @@ function App() {
     }
   };
 
+  const toggleListening = () => {
+    if (!recognition) return;
+
+    try {
+      if (isListening) {
+        recognition.stop();
+        setIsListening(false);
+      } else {
+        setIsListening(true);
+        recognition.start();
+      }
+    } catch (error) {
+      console.error('Error with speech recognition:', error);
+      setIsListening(false);
+    }
+  };
+
   // Auto-search when switching to grants or profiles tabs
   useEffect(() => {
     if (activeTab === 'grants' && grants.length === 0 && !loading) {
@@ -472,13 +583,6 @@ function App() {
     }
   }, [activeTab]);
 
-  const handleSync = () => {
-    if (activeTab === 'grants') {
-      searchGrants(true);
-    } else if (activeTab === 'profiles') {
-      searchProfiles(true);
-    }
-  };
 
   // Result selection handlers
   const handleGrantSelection = (grant, index) => {
@@ -493,20 +597,6 @@ function App() {
     console.log('Selected profile:', profile);
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const formatCurrency = (amount) => {
-    if (!amount) return 'N/A';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   return (
     <div style={styles.app}>
@@ -617,57 +707,147 @@ function App() {
           >
             📁 My Saved Grants
           </button>
+          <button 
+            style={activeTab === 'forum' ? {...styles.tabButton, ...styles.tabButtonActive} : styles.tabButton}
+            onClick={() => setActiveTab('forum')}
+          >
+            💬 Forum
+          </button>
         </div>
 
-        <div style={styles.searchForm}>
-          <input
-            type="text"
-            placeholder={activeTab === 'overview' ? 'Welcome to your grant application dashboard...' : activeTab === 'grants' ? 'Ask about grants in natural language...' : activeTab === 'profiles' ? 'Ask about researchers in natural language...' : activeTab === 'saved' ? 'Manage your saved grants and collaborations...' : 'Search...'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            style={styles.searchInput}
-          />
-          
-          
-          
-          
-          <button 
-            onClick={handleSearch} 
-            disabled={loading}
-            style={loading ? {...styles.searchButton, ...styles.searchButtonDisabled} : styles.searchButton}
-          >
-            {loading ? 'AI Searching...' : '🤖 AI Search'}
-          </button>
-          
-          <button 
-            onClick={handleSync} 
-            disabled={loading}
-            style={loading ? {...styles.searchButton, ...styles.searchButtonDisabled} : {...styles.searchButton, background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)'}}
-          >
-            {loading ? 'Syncing...' : '🔄 Sync from IgniteHub'}
-          </button>
-        </div>
+        {/* Search Bar - Only show for grants and profiles tabs */}
+        {(activeTab === 'grants' || activeTab === 'profiles') && (
+          <Box sx={{ 
+            display: 'flex', 
+            gap: '15px', 
+            flexWrap: 'wrap', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            position: 'relative',
+            width: '100%',
+            maxWidth: '800px',
+            margin: '0 auto',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: '-20px',
+              left: '-20px',
+              right: '-20px',
+              bottom: '-20px',
+              background: `linear-gradient(45deg, ${alpha('#dc3545', 0.1)}, ${alpha('#e74c3c', 0.1)})`,
+              borderRadius: '30px',
+              zIndex: -1,
+              filter: 'blur(20px)',
+            },
+          }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder={activeTab === 'grants' ? 'Ask about grants in natural language...' : 'Ask about researchers in natural language...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '30px',
+                  backgroundColor: alpha('#ffffff', 0.8),
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: `0 4px 20px ${alpha('#dc3545', 0.1)}`,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    boxShadow: `0 6px 25px ${alpha('#dc3545', 0.15)}`,
+                  },
+                  '&.Mui-focused': {
+                    boxShadow: `0 8px 30px ${alpha('#dc3545', 0.2)}`,
+                  },
+                },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <AnimatedSearchIcon sx={{ color: '#dc3545' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={toggleListening}
+                      color={isListening ? "error" : "primary"}
+                      disabled={loading}
+                      sx={{
+                        mr: 1,
+                        transition: 'all 0.3s ease',
+                        animation: isListening ? 'pulse 1.5s infinite' : 'none',
+                        '@keyframes pulse': {
+                          '0%': {
+                            transform: 'scale(1)',
+                            boxShadow: '0 0 0 0 rgba(255, 0, 0, 0.4)'
+                          },
+                          '70%': {
+                            transform: 'scale(1.1)',
+                            boxShadow: '0 0 0 10px rgba(255, 0, 0, 0)'
+                          },
+                          '100%': {
+                            transform: 'scale(1)',
+                            boxShadow: '0 0 0 0 rgba(255, 0, 0, 0)'
+                          }
+                        }
+                      }}
+                    >
+                      {isListening ? <MicOffIcon /> : <MicIcon />}
+                    </IconButton>
+                    <StyledSearchButton
+                      onClick={handleSearch}
+                      disabled={loading || !searchQuery.trim()}
+                      $isLoading={loading}
+                    >
+                      <span className="button-text">{loading ? 'AI Searching...' : '🤖 AI Search'}</span>
+                      {loading && (
+                        <CircularProgress
+                          size={28}
+                          thickness={4}
+                          sx={{
+                            color: '#e74c3c',
+                            position: 'absolute',
+                            right: '12px',
+                            filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.2))'
+                          }}
+                        />
+                      )}
+                    </StyledSearchButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+        )}
         
         {/* Natural Language Search Helper */}
         {(activeTab === 'grants' || activeTab === 'profiles') && (
-          <div style={{
-            maxWidth: '1200px',
-            margin: '0 auto 20px',
-            background: '#f8f9fa',
-            padding: '15px 20px',
-            borderRadius: '10px',
-            border: '1px solid #e9ecef',
-            fontSize: '0.9rem',
-            color: '#495057',
-          }}>
-            <strong>💡 AI Search Examples:</strong>
-            {activeTab === 'grants' ? (
-              <span> "I'm looking for grants in artificial intelligence and machine learning", "NSF funding for renewable energy research", "Grants for early career researchers in biology"</span>
-            ) : (
-              <span> "Researchers working on climate change and sustainability", "Machine learning experts at top universities", "Professors specializing in renewable energy"</span>
-            )}
-          </div>
+          <Fade in timeout={1000}>
+            <Box sx={{
+              maxWidth: '1200px',
+              margin: '0 auto 20px',
+              background: alpha('#f8f9fa', 0.8),
+              padding: '15px 20px',
+              borderRadius: '10px',
+              border: `1px solid ${alpha('#e9ecef', 0.5)}`,
+              fontSize: '0.9rem',
+              color: '#495057',
+              backdropFilter: 'blur(10px)',
+            }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                💡 AI Search Examples:
+              </Typography>
+              <Typography variant="body2">
+                {activeTab === 'grants' ? (
+                  "I'm looking for grants in artificial intelligence and machine learning", "NSF funding for renewable energy research", "Grants for early career researchers in biology"
+                ) : (
+                  "Researchers working on climate change and sustainability", "Machine learning experts at top universities", "Professors specializing in renewable energy"
+                )}
+              </Typography>
+            </Box>
+          </Fade>
         )}
       </div>
 
@@ -718,6 +898,10 @@ function App() {
           <SavedGrants
             onClose={() => setActiveTab('grants')}
           />
+        )}
+
+        {activeTab === 'forum' && (
+          <Forum />
         )}
       </div>
 

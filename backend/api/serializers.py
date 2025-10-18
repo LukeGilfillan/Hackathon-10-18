@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Grant, ResearcherProfile, Professor, GrantRecommendation, SavedGrant, CollaborationInvite, Collaboration, ProfessorUser, Forum, Topic, Post, PostLike, TopicSubscription
+from .models import Grant, ResearcherProfile, Professor, GrantRecommendation, SavedGrant, CollaborationInvite, Collaboration, ProfessorUser, Forum, Topic, Post, PostLike, TopicSubscription, GrantPipelineStage, GrantPipelineEntry
 
 class GrantSerializer(serializers.ModelSerializer):
     """Serializer for Grant model"""
@@ -305,5 +305,39 @@ class TopicSubscriptionSerializer(serializers.ModelSerializer):
             'created_at'
         ]
         read_only_fields = ['id', 'created_at', 'topic_title', 'user_email']
+
+
+class GrantPipelineStageSerializer(serializers.ModelSerializer):
+    """Serializer for GrantPipelineStage model"""
+    
+    grant_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = GrantPipelineStage
+        fields = [
+            'id', 'name', 'order', 'color', 'grant_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'grant_count']
+    
+    def get_grant_count(self, obj):
+        return obj.grants.count()
+
+
+class GrantPipelineEntrySerializer(serializers.ModelSerializer):
+    """Serializer for GrantPipelineEntry model"""
+    
+    grant = GrantSerializer(read_only=True)
+    stage = GrantPipelineStageSerializer(read_only=True)
+    grant_id = serializers.IntegerField(write_only=True)
+    stage_id = serializers.IntegerField(write_only=True, required=False)
+    
+    class Meta:
+        model = GrantPipelineEntry
+        fields = [
+            'id', 'grant', 'stage', 'grant_id', 'stage_id', 'notes', 'priority',
+            'application_deadline', 'application_submitted_date', 'decision_date',
+            'decision_status', 'created_at', 'updated_at', 'moved_to_stage_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'moved_to_stage_at']
 
 

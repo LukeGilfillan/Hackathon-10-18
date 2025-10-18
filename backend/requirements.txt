@@ -1,0 +1,60 @@
+# Django and REST Framework
+Django==5.2.7
+djangorestframework==3.16.1
+django-cors-headers==4.9.0
+
+# Google AI/Generative AI
+google-generativeai==0.8.5
+google-ai-generativelanguage==0.6.15
+google-api-core==2.26.0
+google-api-python-client==2.185.0
+google-auth==2.41.1
+google-auth-httplib2==0.2.0
+googleapis-common-protos==1.70.0
+
+# Machine Learning and Data Processing
+scikit-learn==1.7.2
+numpy==2.3.4
+scipy==1.16.2
+joblib==1.5.2
+
+# HTTP and API
+requests==2.32.5
+httplib2==0.31.0
+
+# Data Validation and Processing
+pydantic==2.12.3
+pydantic_core==2.41.4
+annotated-types==0.7.0
+
+# Utilities
+tqdm==4.67.1
+cachetools==6.2.1
+threadpoolctl==3.6.0
+typing_extensions==4.15.0
+typing-inspection==0.4.2
+
+# Security and Authentication
+rsa==4.9.1
+pyasn1==0.6.1
+pyasn1_modules==0.4.2
+
+# Protocol Buffers and gRPC
+protobuf==5.29.5
+proto-plus==1.26.1
+grpcio==1.75.1
+grpcio-status==1.71.2
+
+# URL and Text Processing
+uritemplate==4.2.0
+urllib3==2.5.0
+charset-normalizer==3.4.4
+idna==3.11
+certifi==2025.10.5
+pyparsing==3.2.5
+
+# Django ASGI
+asgiref==3.10.0
+
+# Database
+sqlparse==0.5.3

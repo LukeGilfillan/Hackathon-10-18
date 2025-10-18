@@ -157,71 +157,6 @@ const GrantRecommendations = ({ currentUser, onError }) => {
   console.log('Transformed opportunities:', transformedOpportunities.length, 'opportunities');
   console.log('First opportunity title:', transformedOpportunities[0]?.title);
 
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '300px',
-          padding: '40px 20px',
-          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
-          borderRadius: '16px',
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-        }}
-      >
-        <CircularProgress 
-          size={60} 
-          thickness={4}
-          sx={{ 
-            color: 'primary.main',
-            marginBottom: '20px'
-          }} 
-        />
-        <Typography 
-          variant="h6" 
-          sx={{ 
-            fontWeight: 'bold',
-            color: 'primary.main',
-            marginBottom: '8px',
-            textAlign: 'center'
-          }}
-        >
-          🤖 AI is searching for your perfect matches...
-        </Typography>
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            color: 'text.secondary',
-            textAlign: 'center',
-            maxWidth: '400px',
-            lineHeight: 1.6
-          }}
-        >
-          Our AI is analyzing your research profile and matching it with the best grant opportunities and potential collaborators.
-        </Typography>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            marginTop: '16px',
-            padding: '8px 16px',
-            backgroundColor: alpha(theme.palette.primary.main, 0.1),
-            borderRadius: '20px',
-            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-          }}
-        >
-          <CircularProgress size={16} thickness={4} />
-          <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 'medium' }}>
-            Processing professor profiles and grant contracts...
-          </Typography>
-        </Box>
-      </Box>
-    );
-  }
 
   if (error) {
     return (
@@ -256,7 +191,7 @@ const GrantRecommendations = ({ currentUser, onError }) => {
     );
   }
 
-  if (recommendations.length === 0) {
+  if (transformedOpportunities.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px' }}>
         <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🎯</div>
@@ -288,43 +223,16 @@ const GrantRecommendations = ({ currentUser, onError }) => {
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-        <button 
-          onClick={fetchRecommendations}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '25px',
-            background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
-            color: 'white',
-            fontSize: '1rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease',
-            marginBottom: '20px',
-          }}
-        >
-          🔄 Refresh Recommendations
-        </button>
-      </div>
-      
-      <SavedGrantsSummary 
-        onNavigateToSavedGrants={() => {
-          // Navigate to saved grants tab
-          window.location.hash = '#saved';
-        }}
-      />
-      
-      <RecommendationsListWrapper
-        opportunities={transformedOpportunities}
-        onSelectOpportunity={handleSelectOpportunity}
-        currentIndex={selectedIndex}
-        showList={showList}
-        onToggleList={handleToggleList}
-        isLoading={loading}
-      />
-    </div>
+    <RecommendationsListWrapper
+      opportunities={transformedOpportunities}
+      onSelectOpportunity={handleSelectOpportunity}
+      currentIndex={selectedIndex}
+      showList={showList}
+      onToggleList={handleToggleList}
+      isLoading={loading}
+      query="AI Recommendations"
+      showFooter={false}
+    />
   );
 };
 

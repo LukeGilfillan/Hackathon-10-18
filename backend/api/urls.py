@@ -43,4 +43,10 @@ urlpatterns = [
     path('posts/', views.create_post, name='create_post'),
     path('posts/like/', views.toggle_post_like, name='toggle_post_like'),
     path('topics/subscribe/', views.toggle_topic_subscription, name='toggle_topic_subscription'),
+    
+    # Grant Pipeline endpoints
+    path('grant-pipeline/', views.grant_pipeline, name='grant_pipeline'),
+    path('grant-pipeline/entry/<int:entry_id>/', views.grant_pipeline_entry, name='grant_pipeline_entry'),
+    path('grant-pipeline/entry/<int:entry_id>/move/', views.move_grant_to_stage, name='move_grant_to_stage'),
+    path('pipeline-stages/', views.pipeline_stages, name='pipeline_stages'),
 ]

@@ -9,6 +9,7 @@ using a two-stage AI approach:
 
 import json
 import logging
+import re
 from django.conf import settings
 import google.generativeai as genai
 from .models import Grant, ResearcherProfile
@@ -30,6 +31,58 @@ class DecimalEncoder(json.JSONEncoder):
 
 class NaturalLanguageSearchService:
     """Service for natural language search using two-stage AI approach"""
+    
+    @staticmethod
+    def _normalize_name(name):
+        """
+        Normalize a name for better matching by removing common prefixes and suffixes.
+        
+        Args:
+            name: Name string to normalize
+            
+        Returns:
+            Normalized name string
+        """
+        if not name:
+            return ""
+        
+        # Remove common prefixes
+        prefixes_to_remove = ['dr.', 'prof.', 'professor', 'rev.', 'msgr.', 'fr.', 'mr.', 'ms.', 'mrs.']
+        normalized = name.lower().strip()
+        
+        for prefix in prefixes_to_remove:
+            if normalized.startswith(prefix + ' '):
+                normalized = normalized[len(prefix):].strip()
+        
+        # Remove common suffixes
+        suffixes_to_remove = ['ph.d.', 'md', 'jd', 'j.c.d.', 'j.c.l.', 'm.s.l.', 'c.s.p.']
+        for suffix in suffixes_to_remove:
+            if normalized.endswith(', ' + suffix):
+                normalized = normalized[:-len(', ' + suffix)]
+            elif normalized.endswith(' ' + suffix):
+                normalized = normalized[:-len(' ' + suffix)]
+        
+        return normalized.strip()
+    
+    @staticmethod
+    def _extract_name_parts(name):
+        """
+        Extract individual name parts from a full name.
+        
+        Args:
+            name: Full name string
+            
+        Returns:
+            List of name parts
+        """
+        if not name:
+            return []
+        
+        # Split by common separators and clean up
+        parts = re.split(r'[,\s]+', name.strip())
+        # Remove empty parts and single characters
+        parts = [part for part in parts if len(part) > 1]
+        return parts
     
     @staticmethod
     def search_grants_with_nlp(query, limit=20):
@@ -626,9 +679,14 @@ class NaturalLanguageSearchService:
               * Include both specific and general terms
               * Example: "AI researchers" could expand to "artificial intelligence machine learning deep learning neural networks computer vision natural language processing"
 
-            - name_keywords (array): researcher name keywords
-              * Include variations and common names
-              * Only include if specifically mentioned
+            - name_keywords (array): researcher name keywords - CRITICAL FOR NAME SEARCHES
+              * Extract ALL possible name variations from the query
+              * Include first names, last names, full names, and common variations
+              * Include nicknames, shortened forms, and alternative spellings
+              * Examples: "John" -> ["John", "Johnny", "Jon", "Jonathan"]
+              * Examples: "Smith" -> ["Smith", "Smyth"]
+              * Examples: "Dr. Sarah Johnson" -> ["Sarah", "Johnson", "Sarah Johnson", "Dr. Sarah Johnson"]
+              * ALWAYS include this field if ANY name is mentioned in the query
 
             - position_keywords (array): job title/position keywords
               * Include academic positions and research roles
@@ -664,6 +722,21 @@ class NaturalLanguageSearchService:
 
             Example inputs and outputs:
 
+            Input: "Find John Smith"
+            Output:
+            {{
+                "name_keywords": ["John", "Smith", "John Smith", "Johnny", "Jon", "Jonathan"],
+                "term": "John Smith"
+            }}
+
+            Input: "Show me Dr. Sarah"
+            Output:
+            {{
+                "name_keywords": ["Sarah", "Dr. Sarah", "Sara", "Sally"],
+                "position_keywords": ["professor", "doctor", "researcher"],
+                "term": "Sarah doctor"
+            }}
+
             Input: "Find AI researchers at Stanford"
             Output:
             {{
@@ -692,12 +765,31 @@ class NaturalLanguageSearchService:
                 "bio_keywords": ["collaborative research", "interdisciplinary", "field work", "climate modeling"]
             }}
 
+            Input: "Peter from engineering"
+            Output:
+            {{
+                "name_keywords": ["Peter", "Pete", "Petros", "Pedro"],
+                "department_keywords": ["Engineering", "Computer Engineering", "Mechanical Engineering", "Electrical Engineering"],
+                "term": "Peter engineering"
+            }}
+
+            Input: "Maria in computer science"
+            Output:
+            {{
+                "name_keywords": ["Maria", "Mary", "Marie", "Mariam"],
+                "department_keywords": ["Computer Science", "CS", "Computing", "Software Engineering"],
+                "term": "Maria computer science"
+            }}
+
             Guidelines:
-            1. Always err on the side of being more inclusive with search terms
-            2. Include related terms to capture all relevant researchers
-            3. Only include fields that are directly relevant to the query
-            4. All fields are optional - only include what makes sense
-            5. When in doubt, be broader rather than narrower
+            1. ALWAYS extract name keywords when ANY name is mentioned - this is critical for finding specific people
+            2. Include common name variations, nicknames, and alternative spellings
+            3. Always err on the side of being more inclusive with search terms
+            4. Include related terms to capture all relevant researchers
+            5. Only include fields that are directly relevant to the query
+            6. All fields are optional - only include what makes sense
+            7. When in doubt, be broader rather than narrower
+            8. For name searches, prioritize name_keywords over other fields
 
             Return ONLY the JSON object, no additional text.
             """
@@ -782,17 +874,57 @@ class NaturalLanguageSearchService:
                         score_details['term_score'] = term_score
                         score_details['term_matches'] = term_matches
                 
-                # Name keywords scoring
+                # Name keywords scoring - ENHANCED FOR BETTER NAME MATCHING
                 if search_params.get('name_keywords'):
                     name_score = 0
                     name_matches = []
+                    
+                    # Normalize profile name for better matching
+                    profile_name_normalized = NaturalLanguageSearchService._normalize_name(profile.name)
+                    profile_name_parts = NaturalLanguageSearchService._extract_name_parts(profile_name_normalized)
+                    
                     for keyword in search_params['name_keywords']:
-                        if keyword.lower() in profile.name.lower():
-                            name_score += 10
-                            name_matches.append(keyword)
+                        keyword_normalized = NaturalLanguageSearchService._normalize_name(keyword)
+                        keyword_parts = NaturalLanguageSearchService._extract_name_parts(keyword_normalized)
+                        
+                        # Exact full name match (highest priority)
+                        if keyword_normalized == profile_name_normalized:
+                            name_score += 50
+                            name_matches.append(f"exact_full:{keyword}")
+                        
+                        # Check for exact matches with individual name parts
+                        for keyword_part in keyword_parts:
+                            for profile_part in profile_name_parts:
+                                if keyword_part == profile_part and len(keyword_part) >= 2:
+                                    # First name match (usually first part)
+                                    if profile_name_parts and keyword_part == profile_name_parts[0]:
+                                        name_score += 35
+                                        name_matches.append(f"first_name:{keyword}")
+                                    # Last name match (usually last part)
+                                    elif len(profile_name_parts) > 1 and keyword_part == profile_name_parts[-1]:
+                                        name_score += 30
+                                        name_matches.append(f"last_name:{keyword}")
+                                    # Middle name or other part
+                                    else:
+                                        name_score += 20
+                                        name_matches.append(f"name_part:{keyword}")
+                        
+                        # Partial name match (for nicknames, variations)
+                        if keyword_normalized in profile_name_normalized:
+                            # Higher score for longer matches
+                            match_ratio = len(keyword_normalized) / len(profile_name_normalized)
+                            if match_ratio >= 0.5:  # At least 50% of the name
+                                name_score += 15
+                                name_matches.append(f"partial_long:{keyword}")
+                            elif match_ratio >= 0.3:  # At least 30% of the name
+                                name_score += 10
+                                name_matches.append(f"partial_medium:{keyword}")
+                            else:
+                                name_score += 5
+                                name_matches.append(f"partial_short:{keyword}")
                     
                     if name_score > 0:
-                        name_score = min(name_score, 15)  # Cap at 15 points
+                        name_score = min(name_score, 50)  # Increased cap to 50 points for name matches
                         score += name_score
                         score_details['name_score'] = name_score
                         score_details['name_matches'] = name_matches

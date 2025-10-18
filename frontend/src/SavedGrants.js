@@ -158,16 +158,34 @@ const SavedGrants = ({ onClose }) => {
 
   const fetchSavedGrants = async () => {
     try {
-      const response = await fetch('/api/saved-grants/', {
+      const sessionToken = localStorage.getItem('session_token');
+      if (!sessionToken) return;
+      
+      const response = await fetch('http://localhost:8000/api/grant-pipeline/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Token ${sessionToken}`,
           'Content-Type': 'application/json'
         }
       });
       
       if (response.ok) {
         const data = await response.json();
-        setSavedGrants(data.saved_grants || []);
+        // Transform pipeline entries to saved grants format
+        const grants = data.pipeline_entries?.map(entry => ({
+          id: entry.grant.id, // Grant ID for display
+          pipeline_entry_id: entry.id, // Pipeline entry ID for API calls
+          title: entry.grant.title,
+          agency: entry.grant.agency_code,
+          status: entry.decision_status || 'saved',
+          notes: entry.notes || '',
+          priority: entry.priority || 'medium',
+          application_deadline: entry.application_deadline,
+          application_submitted_date: entry.application_submitted_date,
+          decision_date: entry.decision_date,
+          is_public: false, // Default values for compatibility
+          allow_collaboration: false
+        })) || [];
+        setSavedGrants(grants);
       } else {
         throw new Error('Failed to fetch saved grants');
       }
@@ -178,39 +196,13 @@ const SavedGrants = ({ onClose }) => {
   };
 
   const fetchCollaborationInvites = async () => {
-    try {
-      const response = await fetch('/api/collaboration-invites/?type=received', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setCollaborationInvites(data.invites || []);
-      }
-    } catch (err) {
-      console.error('Error fetching collaboration invites:', err);
-    }
+    // Collaboration features disabled for now
+    setCollaborationInvites([]);
   };
 
   const fetchActiveCollaborations = async () => {
-    try {
-      const response = await fetch('/api/collaborations/', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setActiveCollaborations(data.collaborations || []);
-      }
-    } catch (err) {
-      console.error('Error fetching active collaborations:', err);
-    }
+    // Collaboration features disabled for now
+    setActiveCollaborations([]);
   };
 
   useEffect(() => {
@@ -218,8 +210,8 @@ const SavedGrants = ({ onClose }) => {
       setLoading(true);
       await Promise.all([
         fetchSavedGrants(),
-        fetchCollaborationInvites(),
-        fetchActiveCollaborations()
+        fetchCollaborationInvites(), // Disabled but still called to set empty arrays
+        fetchActiveCollaborations() // Disabled but still called to set empty arrays
       ]);
       setLoading(false);
     };
@@ -330,13 +322,24 @@ const SavedGrants = ({ onClose }) => {
 
   const handleUpdateGrant = async () => {
     try {
-      const response = await fetch(`/api/saved-grants/${selectedGrant.id}/`, {
+      const sessionToken = localStorage.getItem('session_token');
+      if (!sessionToken) return;
+      
+      // Find the pipeline entry for this grant
+      const pipelineEntry = savedGrants.find(grant => grant.id === selectedGrant.id);
+      if (!pipelineEntry || !pipelineEntry.pipeline_entry_id) return;
+      
+      const response = await fetch(`http://localhost:8000/api/grant-pipeline/entry/${pipelineEntry.pipeline_entry_id}/`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Token ${sessionToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify({
+          notes: editForm.notes,
+          priority: editForm.priority || 'medium',
+          decision_status: editForm.status
+        })
       });
 
       if (response.ok) {
@@ -366,10 +369,17 @@ const SavedGrants = ({ onClose }) => {
     }
 
     try {
-      const response = await fetch(`/api/saved-grants/${grantId}/`, {
+      const sessionToken = localStorage.getItem('session_token');
+      if (!sessionToken) return;
+      
+      // Find the pipeline entry for this grant
+      const pipelineEntry = savedGrants.find(grant => grant.id === grantId);
+      if (!pipelineEntry || !pipelineEntry.pipeline_entry_id) return;
+      
+      const response = await fetch(`http://localhost:8000/api/grant-pipeline/entry/${pipelineEntry.pipeline_entry_id}/`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Token ${sessionToken}`,
           'Content-Type': 'application/json'
         }
       });
