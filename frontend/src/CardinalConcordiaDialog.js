@@ -264,6 +264,18 @@ const CardinalConcordiaDialog = ({ open, onClose }) => {
     setQuestion('');
     setLoading(true);
 
+    // Create a temporary bot message for streaming
+    const tempBotMessageId = Date.now() + 1;
+    const tempBotMessage = {
+      id: tempBotMessageId,
+      type: 'bot',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true
+    };
+
+    setMessages(prev => [...prev, tempBotMessage]);
+
     try {
       const response = await fetch(`${API_BASE_URL}/chatbot/`, {
         method: 'POST',
@@ -280,25 +292,70 @@ const CardinalConcordiaDialog = ({ open, onClose }) => {
         throw new Error('Failed to get response');
       }
 
-      const data = await response.json();
-      
-      const botMessage = {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: data.answer || 'I apologize, but I couldn\'t process your request at the moment. Please try again.',
-        timestamp: new Date()
-      };
+      // Handle streaming response
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
 
-      setMessages(prev => [...prev, botMessage]);
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.error) {
+                throw new Error(data.error);
+              }
+
+              if (data.content) {
+                fullContent += data.content;
+                // Update the streaming message
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === tempBotMessageId 
+                      ? { ...msg, content: fullContent }
+                      : msg
+                  )
+                );
+              }
+
+              if (data.done) {
+                // Mark streaming as complete
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === tempBotMessageId 
+                      ? { ...msg, isStreaming: false }
+                      : msg
+                  )
+                );
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
+            }
+          }
+        }
+      }
+
     } catch (error) {
       console.error('Error querying chatbot:', error);
-      const errorMessage = {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: 'I apologize, but I\'m experiencing technical difficulties. Please try again in a moment.',
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      // Replace the streaming message with an error message
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === tempBotMessageId 
+            ? { 
+                ...msg, 
+                content: 'I apologize, but I\'m experiencing technical difficulties. Please try again in a moment.',
+                isStreaming: false
+              }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -397,8 +454,8 @@ const CardinalConcordiaDialog = ({ open, onClose }) => {
                           }}
                         />
                       </Box>
-                      <MessagePaper elevation={0}>
-                        {message.content === '...' ? (
+                      <MessagePaper elevation={0} isStreaming={message.isStreaming}>
+                        {message.isStreaming && !message.content ? (
                           <LoadingDots />
                         ) : (
                           <ReactMarkdown
@@ -491,40 +548,6 @@ const CardinalConcordiaDialog = ({ open, onClose }) => {
               </StyledListItem>
             </React.Fragment>
           ))}
-          {loading && (
-            <StyledListItem alignItems="flex-start">
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%' }}>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-                  <Box sx={{
-                    width: 36,
-                    height: 36,
-                    mr: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '50%',
-                    backgroundColor: 'transparent',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                  }}>
-                    <img
-                      src="/images/ConcordiaLogo.png"
-                      alt="Cardinal Concordia"
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        objectFit: 'contain',
-                        borderRadius: '50%'
-                      }}
-                    />
-                  </Box>
-                  <MessagePaper elevation={0} isStreaming>
-                    <LoadingDots />
-                  </MessagePaper>
-                </Box>
-                <Typography variant="caption" sx={{ mt: 1, color: '#6c757d' }}>Cardinal Concordia</Typography>
-              </Box>
-            </StyledListItem>
-          )}
         </MessageList>
         
         <Box sx={{
