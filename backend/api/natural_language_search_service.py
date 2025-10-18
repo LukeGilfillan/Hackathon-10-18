@@ -1156,23 +1156,63 @@ class NaturalLanguageSearchService:
     
     @staticmethod
     def _fallback_search_profiles(query, limit):
-        """Fallback to basic keyword search when AI is not available"""
+        """Enhanced fallback search with better name handling when AI is not available"""
         # Split query into individual words for better matching
         query_words = query.lower().split()
         
-        # Build comprehensive search query
+        # Check if this looks like a name search (contains common name patterns)
+        is_likely_name_search = any(
+            len(word) >= 2 and word[0].isupper() and word[1:].islower() 
+            for word in query_words
+        ) or any(word in ['dr', 'prof', 'professor', 'rev', 'msgr', 'fr'] for word in query_words)
+        
+        # Build comprehensive search query with enhanced name matching
         search_q = Q()
         for word in query_words:
-            search_q |= (
-                Q(name__icontains=word) | 
-                Q(bio__icontains=word) |
-                Q(department__icontains=word) |
-                Q(position__icontains=word) |
-                Q(school__icontains=word) |
-                Q(education__icontains=word)
-            )
+            if len(word) >= 2:  # Skip single characters
+                # Enhanced name matching
+                if is_likely_name_search:
+                    # For name searches, prioritize name field matches
+                    search_q |= (
+                        Q(name__icontains=word) | 
+                        Q(name__icontains=word.title()) |  # Capitalized version
+                        Q(name__icontains=word.upper())   # All caps version
+                    )
+                
+                # General field matching
+                search_q |= (
+                    Q(name__icontains=word) | 
+                    Q(bio__icontains=word) |
+                    Q(department__icontains=word) |
+                    Q(position__icontains=word) |
+                    Q(school__icontains=word) |
+                    Q(education__icontains=word) |
+                    Q(expertise__icontains=word)  # Add expertise field
+                )
         
         profiles_query = ResearcherProfile.objects.filter(search_q)[:limit]
         
-        # Return with default score of 0.5
-        return [(profile, 0.5) for profile in profiles_query]
+        # Score the results based on match quality
+        scored_profiles = []
+        for profile in profiles_query:
+            score = 0.5  # Base score
+            
+            # Boost score for name matches
+            profile_name_lower = profile.name.lower()
+            for word in query_words:
+                if len(word) >= 2:
+                    if word in profile_name_lower:
+                        score += 0.3  # Boost for name matches
+                    if word in (profile.bio or '').lower():
+                        score += 0.1
+                    if word in (profile.department or '').lower():
+                        score += 0.1
+                    if word in (profile.position or '').lower():
+                        score += 0.1
+            
+            scored_profiles.append((profile, min(score, 1.0)))  # Cap at 1.0
+        
+        # Sort by score (descending)
+        scored_profiles.sort(key=lambda x: x[1], reverse=True)
+        
+        return scored_profiles
