@@ -185,7 +185,7 @@ class NaturalLanguageSearchService:
             print(f"🤖 Generating grant search parameters for query: '{query}'")
             # Configure Gemini
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             print("✅ Gemini model configured successfully")
             
             # Get current date for context
@@ -568,7 +568,7 @@ class NaturalLanguageSearchService:
         try:
             # Configure Gemini
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             
             # Prepare grants data for AI analysis
             grants_data = []
@@ -752,7 +752,7 @@ class NaturalLanguageSearchService:
             print(f"🤖 Generating profile search parameters for query: '{query}'")
             # Configure Gemini
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             print("✅ Gemini model configured successfully")
             
             prompt = f"""
@@ -1146,7 +1146,7 @@ class NaturalLanguageSearchService:
         try:
             # Configure Gemini
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             
             # Prepare profiles data for AI analysis
             profiles_data = []
